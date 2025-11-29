@@ -1,5 +1,44 @@
 # Changelog
 
+All notable changes to the **agnt** project will be documented in this file.
+
+> **Note:** This project is a fork of [Google's ADK (Agent Development Kit)](https://github.com/google/adk-python).
+> Changes below the "Original ADK History" section are from the upstream repository.
+> Changes in the "agnt" section are specific to this fork.
+
+---
+
+## agnt - Unreleased
+
+### Added
+- **Programmatic Agent Execution** - Added convenience methods to run agents directly from code
+  - `BaseAgent.run()` - Synchronous execution for simple scripts
+  - `BaseAgent.run_async_simple()` - Asynchronous execution
+  - `BaseAgent.run_cli()` - Interactive CLI mode for chat sessions
+  - `BaseAgent._load_dotenv()` - Automatic `.env` file loading
+  - All methods support automatic environment variable loading from `.env` files
+  - Works from any directory (uses `sys.argv[0]` to locate script)
+
+### Documentation
+- Added `docs/` folder with quick reference documentation:
+  - `running-agents-programmatically.md` - Guide for new programmatic execution methods
+  - `environment-loading.md` - Details on `.env` file loading behavior
+  - `agent-module.md` - Agent module structure reference
+  - `runner-module.md` - Runner system reference
+  - `README.md` - Overview and navigation
+
+### Changed
+- Environment variable loading now searches from script location first (matches `adk run` behavior)
+- Improved `.env` file discovery for better developer experience
+
+---
+
+## Original ADK History
+
+Changes below are from the original [google/adk-python](https://github.com/google/adk-python) repository.
+
+---
+
 ## [1.19.0](https://github.com/google/adk-python/compare/v1.18.0...v1.19.0) (2025-11-19)
 
 ### Features
