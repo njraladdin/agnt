@@ -101,12 +101,12 @@ Thumbs.db
 
 # Playground / Scratch files
 # Ignore everything in playground except documentation
-playground/*
-!playground/.gitkeep
-!playground/README.md
-!playground/.env.example
-!playground/example_quick_test.py
-scratch/
+# playground/*
+# !playground/.gitkeep
+# !playground/README.md
+# !playground/.env.example
+# !playground/example_quick_test.py
+# scratch/
 
 # AI Coding Tools - Project-specific configs
 # Developers should symlink or copy AGENTS.md and add their own overrides locally
@@ -124,3 +124,8 @@ CLAUDE.md
 .rooignore
 .bolt/
 .v0/
+
+# Browser automation artifacts
+screenshots/
+downloaded_files/
+chrome-data/

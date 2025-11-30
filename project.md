@@ -120,7 +120,7 @@ Yes, as a benchmark. Their use cases represent validated demand — people actua
 
 ```
 agnt core (the engine):
-├── Browser                    ✅ Have
+├── Browser                    ← Add
 ├── Sub-agent orchestration    ✅ Have
 ├── Code execution             ← Add
 ├── Document ingestion         ← Add
