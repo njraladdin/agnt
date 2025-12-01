@@ -1,99 +1,88 @@
-# Playground
+# Playground Directory
 
-This directory is for quick experiments, testing, and scratchwork while developing the agnt library.
+Quick experiments and example agents for the ADK library.
 
-## Purpose
+## Directory Structure
 
-- **Quick testing** - Try out new features without creating formal examples
-- **Debugging** - Reproduce and fix issues
-- **Experiments** - Test ideas before implementing them properly
-- **Learning** - Explore the library's capabilities
-
-## Important Notes
-
-⚠️ **This directory is gitignored** - Files here won't be committed to the repository.
-
-- Feel free to create any test scripts here
-- Don't put important code here - it won't be saved to git
-- For permanent examples, use the `examples/` directory (or `agent_test/`)
-- For tests, use the `tests/` directory
-
-## Setup
-
-1. Copy `.env.example` to `.env` and add your API keys:
-   ```bash
-   cp .env.example .env
-   ```
-
-2. Create test scripts as needed:
-   ```python
-   # test_something.py
-   from google.adk.agents.llm_agent import Agent
-
-   agent = Agent(model='gemini-2.5-flash', name='test', ...)
-   agent.run_cli()
-   ```
-
-3. Run them:
-   ```bash
-   python playground/test_something.py
-   ```
-
-## Common Use Cases
-
-### Quick Agent Test
-```python
-from google.adk.agents.llm_agent import Agent
-
-agent = Agent(
-    model='gemini-2.5-flash',
-    name='quick_test',
-    instruction='You are helpful'
-)
-
-# Test in CLI
-agent.run_cli()
-
-# Or test programmatically
-for event in agent.run('Hello!'):
-    if event.content:
-        print(event.content)
+```
+playground/
+├── browser_examples/       # Browser automation examples
+│   └── browser_agent.py   # Interactive browser agent
+│
+├── api_server/            # FastAPI server examples
+│   ├── api_server_example.py  # Browser agent API server
+│   ├── test_api_client.py     # API client test script
+│   └── README.md              # API server documentation
+│
+├── agent_test/            # Test agent for development
+│
+├── chrome-data/           # Browser data (gitignored)
+├── downloaded_files/      # Downloaded files (gitignored)
+├── screenshots/           # Browser screenshots (gitignored)
+│
+├── .env                   # Environment variables (gitignored)
+├── .env.example           # Example environment variables
+└── README.md              # This file
 ```
 
-### Testing with Tools
-```python
-from google.adk.agents.llm_agent import Agent
-from google.adk.tools import FunctionTool
+## Quick Start
 
-def add(a: int, b: int) -> int:
-    """Add two numbers."""
-    return a + b
+### Browser Agent (CLI)
 
-agent = Agent(
-    model='gemini-2.5-flash',
-    name='math_agent',
-    tools=[FunctionTool(add)]
-)
-
-agent.run_cli()
+```bash
+cd browser_examples
+python browser_agent.py
 ```
 
-### Multi-Agent Testing
-```python
-specialist1 = Agent(name='specialist1', ...)
-specialist2 = Agent(name='specialist2', ...)
+Interactive browser automation agent with CLI interface.
 
-coordinator = Agent(
-    name='coordinator',
-    sub_agents=[specialist1, specialist2]
-)
+### API Server
 
-coordinator.run_cli()
+```bash
+cd api_server
+uvicorn api_server_example:app --reload
 ```
 
-## Tips
+Then test with:
 
-- Use descriptive filenames: `test_memory.py`, `debug_tool_calling.py`, etc.
-- Add comments to remember what you were testing
-- Clean up old scripts occasionally
-- If something works well, consider moving it to `examples/` or writing a test
+```bash
+python test_api_client.py
+```
+
+See [api_server/README.md](api_server/README.md) for full documentation.
+
+### Test Agent
+
+```bash
+cd agent_test
+python agent.py
+```
+
+Simple test agent for development and experimentation.
+
+## Environment Variables
+
+Copy `.env.example` to `.env` and configure:
+
+```bash
+cp .env.example .env
+```
+
+Required variables:
+
+- `GOOGLE_API_KEY` - Your Google AI API key (for Gemini models)
+
+## Adding New Examples
+
+When adding new examples:
+
+1. **Browser-related**: Add to `browser_examples/`
+2. **API/Server-related**: Add to `api_server/`
+3. **General agents**: Add to root or create new category folder
+4. **Include README**: Document how to run and what it demonstrates
+
+## See Also
+
+- [Running Agents Programmatically](../docs/running-agents-programmatically.md)
+- [Browser Automation](../docs/browser-automation.md)
+- [Deploying Agents](../docs/deploying-agents.md)
