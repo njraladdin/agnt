@@ -120,9 +120,9 @@ Yes, as a benchmark. Their use cases represent validated demand — people actua
 
 ```
 agnt core (the engine):
-├── Browser                    ← Add
+├── Browser                    ✅ Have
 ├── Sub-agent orchestration    ✅ Have
-├── Code execution             ← Add
+├── Code execution             ✅ Have
 ├── Document ingestion         ← Add
 ├── Memory                     ← Add
 ├── Document generation        ← Add
@@ -133,4 +133,77 @@ With this core, you can build:
 └── And others can build their own agents
 ```
 
-Does this answer both questions? Core engine focus + Manus as a capability benchmark?
+**The agnt Ecosystem**
+
+---
+
+**Core:**
+
+**agnt** — the AI agent engine (Python, open source)
+
+- Forked from Google ADK, selectively pulling upstream improvements
+- Every merge = forced deep understanding of patterns
+- Your additions on top: reliability, scraping capability, your architecture
+- This IS the sdk — others can `pip install agnt` and build on it
+- Can detach from fork later if you diverge significantly
+
+---
+
+**Surfaces (all built on agnt core):**
+
+```
+                              agnt
+                         (core engine)
+                               │
+       ┌───────────────┬───────┴───────┬───────────────┐
+       │               │               │               │
+       ▼               ▼               ▼               ▼
+  ┌─────────┐    ┌───────────┐   ┌───────────┐   ┌───────────┐
+  │  agnt   │    │   agnt    │   │   agnt    │   │   agnt    │
+  │   web   │    │    cli    │   │ extension │   │  desktop  │
+  │         │    └───────────┘   └───────────┘   └───────────┘
+  │ ┌─────┐ │
+  │ │chat │ │
+  │ ├─────┤ │
+  │ │flows│ │
+  │ └─────┘ │
+  └─────────┘
+```
+
+| Surface            | What it does                                     | Environment                                |
+| ------------------ | ------------------------------------------------ | ------------------------------------------ |
+| **agnt web**       | Main hosted product with two modes               | Cloud browser                              |
+| — chat             | "Do this for me" — agent-driven, exploratory     |                                            |
+| — flows            | "Here's my workflow" — user-driven, visual nodes |                                            |
+| **agnt cli**       | Terminal interface                               | Local machine, files, scripts              |
+| **agnt extension** | Runs on your browser                             | Authenticated sessions, Google Docs, Gmail |
+| **agnt desktop**   | Native app control                               | Screen + mouse/keyboard, GUI apps          |
+
+---
+
+**Dragons in the arena:**
+
+| Surface        | Competes with                           |
+| -------------- | --------------------------------------- |
+| agnt core      | LangChain, CrewAI, agent frameworks     |
+| agnt chat      | OpenAI Operator, Anthropic computer use |
+| agnt flows     | n8n, Zapier, Make                       |
+| agnt cli       | Developer automation tools              |
+| agnt extension | Browser assistants                      |
+| agnt desktop   | Adept, Anthropic computer use           |
+
+---
+
+**The outcome:**
+
+An AI agent engine that lives everywhere — cloud, browser, terminal, desktop — where improving the core raises everything, extensible by anyone, open source foundation with hosted products for revenue.
+
+**The cinematic anchor:**
+
+Your mom using the extension to make test papers in Google Docs.
+
+**The mode:**
+
+Dragon-slaying. Open + extensible vs closed giants. Sorcerer vs Sukuna.
+
+---

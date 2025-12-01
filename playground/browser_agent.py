@@ -5,35 +5,18 @@ This agent demonstrates browser automation capabilities using the ADK browser to
 It can navigate websites, interact with elements, and analyze page content.
 """
 
-import asyncio
-
 from google.adk.agents.llm_agent import Agent
 from google.adk.tools.browser import BrowserToolset
-from google.adk.tools.browser import SeleniumBaseBrowser
 from google.adk.tools.browser.implementations import BrowserConfig
 from google.adk.tools.browser.implementations import BrowserOptions
 
 
-# Initialize browser globally
-browser = SeleniumBaseBrowser(
-    options=BrowserOptions(
-        browser=BrowserConfig(
-            headless=False,  # Set to True for headless mode
-            undetectable=True,
-            incognito=True,
-        )
-    )
-)
-
-
 def main():
   """Run the browser agent."""
-  print('Initializing browser...')
-  # Initialize browser synchronously
-  asyncio.run(browser.initialize())
-
   print('Creating browser agent...')
-  # Create agent
+
+  # Create agent with BrowserToolset
+  # BrowserToolset is session-aware and will automatically manage browsers
   agent = Agent(
       model='gemini-2.5-flash',
       name='browser_agent',
@@ -55,7 +38,17 @@ Best practices:
 4. Screenshots are automatically included in your responses
 
 Keep responses concise and focused on the task.""",
-      tools=[BrowserToolset(browser=browser)],
+      tools=[
+          BrowserToolset(
+              browser_options=BrowserOptions(
+                  browser=BrowserConfig(
+                      headless=False,  # Set to True for headless mode
+                      undetectable=True,
+                      incognito=True,
+                  )
+              )
+          )
+      ],
   )
 
   print('\nBrowser agent ready!')
@@ -65,13 +58,10 @@ Keep responses concise and focused on the task.""",
   print('  - "Click the login button"')
   print('\nType "exit" to quit\n')
 
-  try:
-    # Run in interactive CLI mode (this handles its own event loop)
-    agent.run_cli()
-  finally:
-    print('\nClosing browser...')
-    asyncio.run(browser.close())
+  # Run in interactive CLI mode
+  agent.run_cli()
 
 
 if __name__ == '__main__':
   main()
+
