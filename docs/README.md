@@ -9,15 +9,18 @@ These docs focus on what we worked on recently - running agents programmatically
 ## Documents
 
 ### [Running Agents Programmatically](running-agents-programmatically.md)
+
 The main feature we added - how to run agents directly from code.
 
 **Key Points:**
+
 - Three new methods: `run()`, `run_async_simple()`, `run_cli()`
 - `run_cli()` for interactive chat (most common use case)
 - No manual runner/session setup needed
 - Auto-loads `.env` files
 
 **Quick Example:**
+
 ```python
 from google.adk.agents.llm_agent import Agent
 
@@ -28,9 +31,11 @@ agent.run_cli()  # Start interactive chat
 ```
 
 ### [Environment Loading](environment-loading.md)
+
 How `.env` files are automatically loaded.
 
 **Key Points:**
+
 - Uses `sys.argv[0]` to find script location
 - Searches upwards from script directory
 - Matches `adk run` behavior
@@ -40,9 +45,11 @@ How `.env` files are automatically loaded.
 Running `python agent_test/agent.py` from project root now finds `agent_test/.env` automatically.
 
 ### [Agent Module](agent-module.md)
+
 Structure of the agent module.
 
 **Key Points:**
+
 - `BaseAgent` - abstract base class
 - `LlmAgent` - main implementation (aliased as `Agent`)
 - Agent trees for multi-agent systems
@@ -50,14 +57,28 @@ Structure of the agent module.
 - New programmatic methods added to `BaseAgent`
 
 ### [Runner Module](runner-module.md)
+
 How the Runner system executes agents.
 
 **Key Points:**
+
 - `Runner` class orchestrates execution
 - `InMemoryRunner` for testing
 - Sessions track conversation state
 - Services: session, artifact, memory, credential
 - `run_async()` is the main production API
+
+### [Plugins](plugins.md)
+
+Plugin system for extending agent behavior.
+
+**Key Points:**
+
+- Intercept and modify agent/tool/LLM behavior
+- Built-in plugins: LoggingPlugin, GlobalInstructionPlugin, ReflectAndRetryToolPlugin
+- Lifecycle callbacks for every execution stage
+- Create custom plugins by extending `BasePlugin`
+- Use cases: logging, error handling, caching, monitoring
 
 ## How These Relate
 
@@ -98,6 +119,7 @@ src/google/adk/
 ## Examples
 
 All in `agent_test/`:
+
 - `agent.py` - Simple interactive CLI
 - `test_run_methods.py` - All three methods demonstrated
 - `quick_test.py` - Minimal test
@@ -114,6 +136,7 @@ When starting a new session, refer to:
 ## What's Not Covered
 
 These are minimal docs focusing on what we worked on. For full ADK features, see:
+
 - Official ADK documentation
 - Source code comments
 - Example agents in the repo

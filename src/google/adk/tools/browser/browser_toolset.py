@@ -91,6 +91,9 @@ class BrowserToolset(BaseToolset):
       browser_options: Optional['BrowserOptions'] = None,
       enable_page_map: bool = True,
       enable_network_capture: bool = True,
+      auto_generate_page_map: bool = True,
+      inject_page_map_in_prompt: bool = True,
+      page_map_mode: str = 'lean',
       **kwargs,
   ):
     """Initialize BrowserToolset.
@@ -103,6 +106,9 @@ class BrowserToolset(BaseToolset):
         the recommended approach as it enables session-scoped browsers.
       enable_page_map: Enable page element mapping tool.
       enable_network_capture: Enable network request capture in page map.
+      auto_generate_page_map: Auto-generate page map after browser actions.
+      inject_page_map_in_prompt: Inject page map into system instructions.
+      page_map_mode: 'lean' (default) or 'rich' format for page maps.
       **kwargs: Additional arguments to pass to BaseToolset.
     """
     super().__init__(**kwargs)
@@ -112,6 +118,9 @@ class BrowserToolset(BaseToolset):
     self._fallback_browser: Optional[BaseBrowser] = None
     self._enable_page_map = enable_page_map
     self._enable_network_capture = enable_network_capture
+    self._auto_generate_page_map = auto_generate_page_map
+    self._inject_page_map_in_prompt = inject_page_map_in_prompt
+    self._page_map_mode = page_map_mode
 
   async def _get_session_browser(self, session_id: str) -> BaseBrowser:
     """Get or create browser for a specific session.
@@ -180,11 +189,36 @@ class BrowserToolset(BaseToolset):
       List of BrowserTool instances.
     """
     tools = [
-        BrowserTool(browser.navigate_to),
-        BrowserTool(browser.click_element),
-        BrowserTool(browser.type_text),
-        BrowserTool(browser.press_keys),
-        BrowserTool(browser.scroll_to_element),
+        BrowserTool(
+            browser.navigate_to,
+            browser=browser,
+            auto_generate_page_map=self._auto_generate_page_map,
+            page_map_mode=self._page_map_mode,
+        ),
+        BrowserTool(
+            browser.click_element,
+            browser=browser,
+            auto_generate_page_map=self._auto_generate_page_map,
+            page_map_mode=self._page_map_mode,
+        ),
+        BrowserTool(
+            browser.type_text,
+            browser=browser,
+            auto_generate_page_map=self._auto_generate_page_map,
+            page_map_mode=self._page_map_mode,
+        ),
+        BrowserTool(
+            browser.press_keys,
+            browser=browser,
+            auto_generate_page_map=self._auto_generate_page_map,
+            page_map_mode=self._page_map_mode,
+        ),
+        BrowserTool(
+            browser.scroll_to_element,
+            browser=browser,
+            auto_generate_page_map=self._auto_generate_page_map,
+            page_map_mode=self._page_map_mode,
+        ),
     ]
 
     if self._enable_page_map:
@@ -225,6 +259,57 @@ class BrowserToolset(BaseToolset):
       browser = await self._get_fallback_browser()
 
     return self._create_tools(browser)
+
+  @override
+  async def process_llm_request(
+      self, *, tool_context, llm_request
+  ) -> None:
+    """Inject page map into system instructions before LLM request.
+
+    This method retrieves the auto-generated page map from session state
+    and formats it into the system instructions, following the pattern
+    from the old implementation.
+
+    Args:
+      tool_context: The context of the tool.
+      llm_request: The outgoing LLM request.
+    """
+    if not self._inject_page_map_in_prompt:
+      return
+
+    page_map_data = tool_context.session.state.get('_browser_page_map')
+    if not page_map_data:
+      return
+
+    # Unpack the tuple: (page_elements, interactive_string, content_string, api_string)
+    page_elements, interactive_string, content_string, api_string = (
+        page_map_data
+    )
+    url = tool_context.session.state.get('_browser_url')
+    title = tool_context.session.state.get('_browser_title')
+
+    # Format like the old implementation
+    page_map_text = 'CURRENT PAGE CONTENT:\n'
+    if page_elements and len(page_elements) > 0:
+      page_map_text += f'Page title: "{title}"\n'
+      page_map_text += f'URL: {url}\n\n'
+
+      if interactive_string:
+        page_map_text += 'INTERACTIVE ELEMENTS:\n'
+        page_map_text += interactive_string + '\n\n'
+
+      if content_string:
+        page_map_text += 'CONTENT ELEMENTS:\n'
+        page_map_text += content_string + '\n\n'
+
+      if api_string:
+        page_map_text += 'CAPTURED API REQUESTS:\n'
+        page_map_text += api_string + '\n'
+    else:
+      page_map_text += 'No page content available yet.\n'
+
+    # Inject into system instructions
+    llm_request.append_instructions([page_map_text])
 
   async def close_session_browser(self, session_id: str) -> None:
     """Close browser for a specific session.

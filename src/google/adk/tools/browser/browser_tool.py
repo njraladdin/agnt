@@ -42,6 +42,9 @@ class BrowserTool(FunctionTool):
       func,
       *,
       include_screenshot: bool = True,
+      browser=None,
+      auto_generate_page_map: bool = False,
+      page_map_mode: str = 'lean',
       **kwargs,
   ):
     """Initialize BrowserTool.
@@ -49,10 +52,16 @@ class BrowserTool(FunctionTool):
     Args:
       func: Browser method to wrap.
       include_screenshot: Whether to include screenshot in response.
+      browser: Browser instance for auto-generating page maps.
+      auto_generate_page_map: Whether to auto-generate page map after execution.
+      page_map_mode: 'lean' or 'rich' format for page maps.
       **kwargs: Additional arguments to pass to FunctionTool.
     """
     super().__init__(func, **kwargs)
     self._include_screenshot = include_screenshot
+    self._browser = browser
+    self._auto_generate_page_map = auto_generate_page_map
+    self._page_map_mode = page_map_mode
 
   @override
   async def run_async(
@@ -72,6 +81,34 @@ class BrowserTool(FunctionTool):
     """
     # Execute the browser function
     result = await super().run_async(args=args, tool_context=tool_context)
+
+    # Auto-generate page map if enabled and browser is available
+    if self._auto_generate_page_map and self._browser:
+      # Only generate for actions that change page state
+      action_triggers_map = [
+          'navigate_to',
+          'click_element',
+          'press_keys',
+      ]
+      if self.name in action_triggers_map:
+        try:
+          # Generate page map (returns tuple)
+          page_map_data = self._browser.generate_page_map(
+              map_type=self._page_map_mode
+          )
+          # Store in session state
+          tool_context.session.state['_browser_page_map'] = page_map_data
+          tool_context.session.state['_browser_url'] = (
+              self._browser.get_current_url()
+          )
+          tool_context.session.state['_browser_title'] = (
+              self._browser.get_page_title()
+          )
+          logger.debug(
+              f'Auto-generated page map after {self.name} (mode: {self._page_map_mode})'
+          )
+        except Exception as e:
+          logger.warning(f'Failed to auto-generate page map: {e}')
 
     # If result is BrowserState, format for LLM
     if isinstance(result, BrowserState):
