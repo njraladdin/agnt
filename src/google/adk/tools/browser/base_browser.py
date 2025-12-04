@@ -58,7 +58,35 @@ class BaseBrowser(abc.ABC):
 
   This abstract base class defines the standard interface for controlling
   web browsers for AI agent automation.
+
+  All interaction methods accept either a `selector` (CSS selector or XPath)
+  or a `ref` (short reference from page map). The ref system allows agents
+  to use short identifiers like "5" instead of full selectors, saving tokens.
   """
+
+  def _resolve_selector(
+      self, selector: Optional[str] = None, ref: Optional[str] = None
+  ) -> str:
+    """Resolve selector from either selector string or ref.
+
+    The ref parameter allows using short references from the page map
+    instead of full CSS selectors, saving tokens in agent prompts.
+
+    Args:
+      selector: CSS selector or XPath to identify the element.
+      ref: Short reference from page map (data-agent-ref attribute).
+
+    Returns:
+      Resolved CSS selector string.
+
+    Raises:
+      ValueError: If neither selector nor ref is provided.
+    """
+    if not selector and not ref:
+      raise ValueError("Either 'selector' or 'ref' must be provided")
+    if ref:
+      return f'[data-agent-ref="{ref}"]'
+    return selector
 
   @abc.abstractmethod
   async def initialize(self) -> None:
@@ -90,13 +118,16 @@ class BaseBrowser(abc.ABC):
     """
 
   @abc.abstractmethod
-  def click_element(self, selector: str) -> bool:
-    """Click an element by CSS selector or XPath.
+  def click_element(
+      self, selector: Optional[str] = None, *, ref: Optional[str] = None
+  ) -> bool:
+    """Click an element by CSS selector, XPath, or ref.
 
     The element is automatically scrolled into view before clicking.
 
     Args:
       selector: CSS selector or XPath to identify the element.
+      ref: Short reference from page map (data-agent-ref attribute).
 
     Returns:
       True if click was successful, False otherwise.
@@ -104,13 +135,19 @@ class BaseBrowser(abc.ABC):
 
   @abc.abstractmethod
   def type_text(
-      self, selector: str, text: str, clear_first: bool = True
+      self,
+      text: str,
+      selector: Optional[str] = None,
+      *,
+      ref: Optional[str] = None,
+      clear_first: bool = True,
   ) -> bool:
     """Type text into an element.
 
     Args:
-      selector: CSS selector or XPath to identify the element.
       text: The text to type.
+      selector: CSS selector or XPath to identify the element.
+      ref: Short reference from page map (data-agent-ref attribute).
       clear_first: Whether to clear existing text before typing.
 
     Returns:
@@ -119,24 +156,32 @@ class BaseBrowser(abc.ABC):
 
   @abc.abstractmethod
   def press_keys(
-      self, selector: Optional[str], keys: Union[str, List[str]]
+      self,
+      keys: Union[str, List[str]],
+      selector: Optional[str] = None,
+      *,
+      ref: Optional[str] = None,
   ) -> bool:
     """Send keyboard input to an element or the active element.
 
     Args:
-      selector: CSS selector or XPath. If None, sends to active element.
       keys: A string or list of strings (e.g., "ArrowDown", "Enter").
+      selector: CSS selector or XPath. If None, sends to active element.
+      ref: Short reference from page map (data-agent-ref attribute).
 
     Returns:
       True if key press was successful, False otherwise.
     """
 
   @abc.abstractmethod
-  def scroll_to_element(self, selector: str) -> bool:
+  def scroll_to_element(
+      self, selector: Optional[str] = None, *, ref: Optional[str] = None
+  ) -> bool:
     """Scroll to an element to bring it into view.
 
     Args:
       selector: CSS selector or XPath to identify the element.
+      ref: Short reference from page map (data-agent-ref attribute).
 
     Returns:
       True if scroll was successful, False otherwise.

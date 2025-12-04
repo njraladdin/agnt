@@ -18,12 +18,18 @@ from .base_browser import BaseBrowser
 from .base_browser import BrowserState
 from .browser_tool import BrowserTool
 from .browser_toolset import BrowserToolset
-from .implementations.seleniumbase_browser import SeleniumBaseBrowser
+from .seleniumbase_browser import BrowserConfig
+from .seleniumbase_browser import BrowserOptions
+from .seleniumbase_browser import ProxyConfig
+from .seleniumbase_browser import SeleniumBaseBrowser
 
 __all__ = [
     'BaseBrowser',
     'BrowserState',
     'BrowserTool',
     'BrowserToolset',
+    'BrowserConfig',
+    'BrowserOptions',
+    'ProxyConfig',
     'SeleniumBaseBrowser',
 ]
