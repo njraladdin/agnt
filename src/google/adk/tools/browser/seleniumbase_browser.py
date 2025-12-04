@@ -352,34 +352,45 @@ class SeleniumBaseBrowser(BaseBrowser):
             logger.error(f"Error navigating to {url}: {e}")
             return False
 
-    def wait_for_element(self, selector: str, timeout: int = 10) -> Optional[Any]:
+    def wait_for_element(
+        self,
+        selector: Optional[str] = None,
+        *,
+        ref: Optional[str] = None,
+        timeout: int = 10,
+    ) -> bool:
         """
         Wait for an element to be present and visible
         
         Args:
             selector: CSS selector or XPath
+            ref: Short reference from page map (data-agent-ref attribute)
             timeout: Maximum time to wait in seconds
             
         Returns:
-            WebElement if found, None otherwise
+            True if element appeared within timeout, False otherwise
         """
         if not self.driver:
-            return None
+            return False
         
         try:
+            # Resolve selector from either selector or ref
+            resolved_selector = self._resolve_selector(selector, ref)
+            if ref:
+                logger.info(f"Resolved ref '{ref}' to selector: {resolved_selector}")
+
             # Use SeleniumBase's built-in wait methods
-            if selector.startswith('/') or selector.startswith('('):
+            if resolved_selector.startswith('/') or resolved_selector.startswith('('):
                 # XPath
-                self.driver.wait_for_element(selector, by="xpath", timeout=timeout)
-                return self.driver.find_element("xpath", selector)
+                self.driver.wait_for_element(resolved_selector, by="xpath", timeout=timeout)
             else:
                 # CSS selector
-                self.driver.wait_for_element(selector, timeout=timeout)
-                return self.driver.find_element("css selector", selector)
+                self.driver.wait_for_element(resolved_selector, timeout=timeout)
+            return True
             
         except Exception as e:
-            logger.warning(f"Element not found: {selector}, Error: {e}")
-            return None
+            logger.warning(f"Element not found: {resolved_selector}, Error: {e}")
+            return False
 
     def find_element(self, selector: str) -> Optional[Any]:
         """
@@ -524,9 +535,7 @@ class SeleniumBaseBrowser(BaseBrowser):
         return self.latest_screenshot_path
 # In browser.py
 
-    def click_element(
-        self, selector: Optional[str] = None, *, ref: Optional[str] = None
-    ) -> bool:
+    def click_element(self, selector: Optional[str] = None, *, ref: Optional[str] = None) -> bool:
         """
         Click an element using SeleniumBase's native click methods.
         Automatically scrolls the element into view before clicking.
@@ -947,12 +956,15 @@ class SeleniumBaseBrowser(BaseBrowser):
             logger.warning(f"Error checking visibility of element {selector}: {e}")
             return False
 
-    def check_element_exists(self, selector: str) -> bool:
+    def check_element_exists(
+        self, selector: Optional[str] = None, *, ref: Optional[str] = None
+    ) -> bool:
         """
         Check if an element exists on the page (regardless of visibility)
         
         Args:
             selector: CSS selector or XPath
+            ref: Short reference from page map (data-agent-ref attribute)
             
         Returns:
             True if element exists, False otherwise
@@ -961,17 +973,207 @@ class SeleniumBaseBrowser(BaseBrowser):
             return False
         
         try:
+            # Resolve selector from either selector or ref
+            resolved_selector = self._resolve_selector(selector, ref)
+            if ref:
+                logger.info(f"Resolved ref '{ref}' to selector: {resolved_selector}")
+
             # Use SeleniumBase's is_element_present method
-            if selector.startswith('/') or selector.startswith('('):
+            if resolved_selector.startswith('/') or resolved_selector.startswith('('):
                 # XPath
-                return self.driver.is_element_present(selector, by="xpath")
+                return self.driver.is_element_present(resolved_selector, by="xpath")
             else:
                 # CSS selector
-                return self.driver.is_element_present(selector)
+                return self.driver.is_element_present(resolved_selector)
             
         except Exception as e:
-            logger.warning(f"Error checking existence of element {selector}: {e}")
+            logger.warning(f"Error checking existence of element {resolved_selector}: {e}")
             return False
+
+    def wait_for_element_to_change(
+        self,
+        selector: Optional[str] = None,
+        *,
+        ref: Optional[str] = None,
+        timeout: int = 15,
+    ) -> Dict[str, Any]:
+        """
+        Wait for an element's content to change (useful for JS-driven pagination).
+
+        This method captures the initial URL and element state, then waits for changes.
+        It handles both SPA updates (content changes without navigation) and full page
+        navigation (element disappears during navigation, then reappears with new content).
+
+        Args:
+            selector: CSS selector of the element to monitor for changes
+            ref: Short reference from page map (data-agent-ref attribute)
+            timeout: Maximum time to wait for changes (default: 15 seconds)
+
+        Returns:
+            A dictionary containing change detection results
+        """
+        if not self.driver:
+            return {"changed": False, "error": "Browser not initialized"}
+
+        try:
+            # Resolve selector from either selector or ref
+            resolved_selector = self._resolve_selector(selector, ref)
+            if ref:
+                logger.info(f"Resolved ref '{ref}' to selector: {resolved_selector}")
+
+            # Escape single quotes in selector for JavaScript string
+            escaped_selector = resolved_selector.replace("\\", "\\\\").replace("'", "\\'")
+
+            # Get initial state (URL + element)
+            initial_script = f"""
+            const element = document.querySelector('{escaped_selector}');
+            if (!element) {{
+                return {{ error: 'Element not found', selector: '{escaped_selector}' }};
+            }}
+            return {{
+                text: element.textContent ? element.textContent.trim() : '',
+                id: element.id || '',
+                innerHTML: element.innerHTML ? element.innerHTML.substring(0, 200) : '',
+                url: window.location.href,
+                exists: true
+            }};
+            """
+
+            initial_data = self.execute_script(initial_script)
+            
+            if initial_data is None:
+                return {"changed": False, "error": "Failed to execute initial script"}
+            
+            if initial_data.get("error"):
+                return {"changed": False, "error": f"Element not found: {resolved_selector}"}
+
+            initial_text = initial_data.get("text", "")
+            initial_id = initial_data.get("id", "")
+            initial_html = initial_data.get("innerHTML", "")
+            initial_url = initial_data.get("url", "")
+
+            logger.info(f"Monitoring element {resolved_selector} for changes...")
+            logger.debug(f"Initial URL: {initial_url}")
+            logger.debug(f"Initial text: '{initial_text[:100]}{'...' if len(initial_text) > 100 else ''}'")
+
+            # Poll for changes
+            start_time = time.time()
+            check_interval = 0.5  # Check every 500ms
+            element_disappeared = False
+
+            while time.time() - start_time < timeout:
+                # Check current state (URL + element)
+                check_script = f"""
+                const element = document.querySelector('{escaped_selector}');
+                if (!element) {{
+                    return {{ error: 'Element not found', url: window.location.href }};
+                }}
+                return {{
+                    text: element.textContent ? element.textContent.trim() : '',
+                    id: element.id || '',
+                    innerHTML: element.innerHTML ? element.innerHTML.substring(0, 200) : '',
+                    url: window.location.href,
+                    exists: true
+                }};
+                """
+
+                try:
+                    current_data = self.execute_script(check_script)
+                except Exception:
+                    # Script execution failed - might be mid-navigation
+                    logger.debug("Script execution failed, might be navigating...")
+                    element_disappeared = True
+                    time.sleep(check_interval)
+                    continue
+
+                if current_data is None:
+                    element_disappeared = True
+                    time.sleep(check_interval)
+                    continue
+
+                # Element not found - might be mid-navigation
+                if current_data.get("error"):
+                    current_url = current_data.get("url", "")
+                    if current_url != initial_url:
+                        logger.debug(f"URL changed: {initial_url} → {current_url}, element temporarily missing...")
+                    else:
+                        logger.debug("Element temporarily missing (might be navigating)...")
+                    element_disappeared = True
+                    time.sleep(check_interval)
+                    continue
+
+                # Element exists now
+                current_text = current_data.get("text", "")
+                current_id = current_data.get("id", "")
+                current_html = current_data.get("innerHTML", "")
+                current_url = current_data.get("url", "")
+
+                # Check for changes
+                url_changed = current_url != initial_url
+                text_changed = current_text != initial_text
+                id_changed = current_id != initial_id
+                html_changed = current_html != initial_html
+
+                # If element reappeared after disappearing, that's a change (likely navigation)
+                if element_disappeared and (url_changed or text_changed or html_changed):
+                    elapsed = time.time() - start_time
+                    logger.info(f"Element reappeared with changes after {elapsed:.1f}s (likely page navigation)")
+
+                    return {
+                        "changed": True,
+                        "elapsed_time": elapsed,
+                        "navigation_detected": True,
+                        "changes": {
+                            "url_changed": url_changed,
+                            "text_changed": text_changed,
+                            "id_changed": id_changed,
+                            "html_changed": html_changed
+                        }
+                    }
+
+                # Check if anything changed (without navigation)
+                if url_changed or text_changed or id_changed or html_changed:
+                    elapsed = time.time() - start_time
+                    change_details = []
+                    if url_changed:
+                        change_details.append(f"URL: {initial_url} → {current_url}")
+                    if text_changed:
+                        change_details.append(f"text changed")
+                    if id_changed:
+                        change_details.append(f"id: '{initial_id}' → '{current_id}'")
+                    if html_changed:
+                        change_details.append("innerHTML content changed")
+
+                    logger.info(f"Element changed after {elapsed:.1f}s: {', '.join(change_details)}")
+
+                    return {
+                        "changed": True,
+                        "elapsed_time": elapsed,
+                        "navigation_detected": url_changed,
+                        "changes": {
+                            "url_changed": url_changed,
+                            "text_changed": text_changed,
+                            "id_changed": id_changed,
+                            "html_changed": html_changed
+                        }
+                    }
+
+                # Wait before next check
+                time.sleep(check_interval)
+
+            # Timeout reached without changes
+            elapsed = time.time() - start_time
+            logger.info(f"No changes detected after {elapsed:.1f}s timeout")
+
+            return {
+                "changed": False,
+                "elapsed_time": elapsed,
+                "timeout": timeout,
+                "element_disappeared": element_disappeared
+            }
+
+        except Exception as e:
+            return {"changed": False, "error": f"Error monitoring element: {str(e)}"}
 
     def scroll_to_element(
         self, selector: Optional[str] = None, *, ref: Optional[str] = None

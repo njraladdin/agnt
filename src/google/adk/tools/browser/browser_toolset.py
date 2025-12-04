@@ -191,6 +191,9 @@ class BrowserToolset(BaseToolset):
         BrowserTool(browser.type_text),
         BrowserTool(browser.press_keys),
         BrowserTool(browser.scroll_to_element),
+        BrowserTool(browser.wait_for_element),
+        BrowserTool(browser.check_element_exists),
+        BrowserTool(browser.wait_for_element_to_change),
     ]
 
     # Note: generate_page_map is now an internal utility only,

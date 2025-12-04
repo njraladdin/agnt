@@ -235,3 +235,70 @@ class BaseBrowser(abc.ABC):
     Returns:
       Page title or None if browser not initialized.
     """
+
+  @abc.abstractmethod
+  def wait_for_element(
+      self,
+      selector: Optional[str] = None,
+      *,
+      ref: Optional[str] = None,
+      timeout: int = 10,
+  ) -> bool:
+    """Wait for an element to appear on the page.
+
+    This method waits until an element matching the selector or ref becomes
+    present and visible on the page, or until the timeout is reached.
+
+    Args:
+      selector: CSS selector or XPath to identify the element.
+      ref: Short reference from page map (data-agent-ref attribute).
+      timeout: Maximum time to wait in seconds (default: 10).
+
+    Returns:
+      True if element appeared within timeout, False otherwise.
+    """
+
+  @abc.abstractmethod
+  def check_element_exists(
+      self, selector: Optional[str] = None, *, ref: Optional[str] = None
+  ) -> bool:
+    """Check if an element exists on the page.
+
+    This method checks for element existence without waiting or throwing
+    exceptions. Useful for conditional logic based on page state.
+
+    Args:
+      selector: CSS selector or XPath to identify the element.
+      ref: Short reference from page map (data-agent-ref attribute).
+
+    Returns:
+      True if element exists, False otherwise.
+    """
+
+  @abc.abstractmethod
+  def wait_for_element_to_change(
+      self,
+      selector: Optional[str] = None,
+      *,
+      ref: Optional[str] = None,
+      timeout: int = 15,
+  ) -> Dict[str, Any]:
+    """Wait for an element's content to change.
+
+    This method is useful for detecting JavaScript-driven pagination,
+    SPA navigation, and dynamic content updates. It captures the initial
+    element state and polls for changes until timeout.
+
+    Args:
+      selector: CSS selector or XPath to identify the element to monitor.
+      ref: Short reference from page map (data-agent-ref attribute).
+      timeout: Maximum time to wait for changes in seconds (default: 15).
+
+    Returns:
+      A dictionary containing:
+        - changed: bool - Whether element content changed
+        - elapsed_time: float - Time taken to detect change
+        - navigation_detected: bool - Whether URL changed
+        - changes: dict - Details of what changed (text, html, url, id)
+        - error: str (optional) - Error message if operation failed
+    """
