@@ -46,7 +46,7 @@ class BrowserToolset(BaseToolset):
     ```python
     from google.adk.agents import Agent
     from google.adk.tools.browser import BrowserToolset
-    from google.adk.tools.browser.implementations import (
+    from google.adk.tools.browser import (
         BrowserOptions,
         BrowserConfig
     )
@@ -89,7 +89,6 @@ class BrowserToolset(BaseToolset):
       browser: Optional[BaseBrowser] = None,
       *,
       browser_options: Optional['BrowserOptions'] = None,
-      enable_page_map: bool = True,
       enable_network_capture: bool = True,
       auto_generate_page_map: bool = True,
       inject_page_map_in_prompt: bool = True,
@@ -104,7 +103,6 @@ class BrowserToolset(BaseToolset):
         all sessions (not recommended for multi-user deployments).
       browser_options: Configuration for creating browser instances. This is
         the recommended approach as it enables session-scoped browsers.
-      enable_page_map: Enable page element mapping tool.
       enable_network_capture: Enable network request capture in page map.
       auto_generate_page_map: Auto-generate page map after browser actions.
       inject_page_map_in_prompt: Inject page map into system instructions.
@@ -116,7 +114,6 @@ class BrowserToolset(BaseToolset):
     self._browser_options = browser_options
     self._session_browsers: Dict[str, BaseBrowser] = {}
     self._fallback_browser: Optional[BaseBrowser] = None
-    self._enable_page_map = enable_page_map
     self._enable_network_capture = enable_network_capture
     self._auto_generate_page_map = auto_generate_page_map
     self._inject_page_map_in_prompt = inject_page_map_in_prompt
@@ -143,7 +140,7 @@ class BrowserToolset(BaseToolset):
         )
 
       logger.info('Creating new browser instance for session: %s', session_id)
-      from .implementations.seleniumbase_browser import SeleniumBaseBrowser
+      from .seleniumbase_browser import SeleniumBaseBrowser
 
       browser = SeleniumBaseBrowser(options=self._browser_options)
       await browser.initialize()
@@ -171,7 +168,7 @@ class BrowserToolset(BaseToolset):
         )
 
       logger.info('Creating fallback browser for CLI use')
-      from .implementations.seleniumbase_browser import SeleniumBaseBrowser
+      from .seleniumbase_browser import SeleniumBaseBrowser
 
       browser = SeleniumBaseBrowser(options=self._browser_options)
       await browser.initialize()
@@ -189,43 +186,16 @@ class BrowserToolset(BaseToolset):
       List of BrowserTool instances.
     """
     tools = [
-        BrowserTool(
-            browser.navigate_to,
-            browser=browser,
-            auto_generate_page_map=self._auto_generate_page_map,
-            page_map_mode=self._page_map_mode,
-        ),
-        BrowserTool(
-            browser.click_element,
-            browser=browser,
-            auto_generate_page_map=self._auto_generate_page_map,
-            page_map_mode=self._page_map_mode,
-        ),
-        BrowserTool(
-            browser.type_text,
-            browser=browser,
-            auto_generate_page_map=self._auto_generate_page_map,
-            page_map_mode=self._page_map_mode,
-        ),
-        BrowserTool(
-            browser.press_keys,
-            browser=browser,
-            auto_generate_page_map=self._auto_generate_page_map,
-            page_map_mode=self._page_map_mode,
-        ),
-        BrowserTool(
-            browser.scroll_to_element,
-            browser=browser,
-            auto_generate_page_map=self._auto_generate_page_map,
-            page_map_mode=self._page_map_mode,
-        ),
+        BrowserTool(browser.navigate_to),
+        BrowserTool(browser.click_element),
+        BrowserTool(browser.type_text),
+        BrowserTool(browser.press_keys),
+        BrowserTool(browser.scroll_to_element),
     ]
 
-    if self._enable_page_map:
-      # Page map tool doesn't need screenshot since it generates its own
-      tools.append(
-          BrowserTool(browser.generate_page_map, include_screenshot=False)
-      )
+    # Note: generate_page_map is now an internal utility only,
+    # automatically called after each browser action.
+    # It is not exposed as a tool to the agent.
 
     return tools
 
@@ -264,11 +234,11 @@ class BrowserToolset(BaseToolset):
   async def process_llm_request(
       self, *, tool_context, llm_request
   ) -> None:
-    """Inject page map into system instructions before LLM request.
+    """Generate page map and inject into system instructions before LLM request.
 
-    This method retrieves the auto-generated page map from session state
-    and formats it into the system instructions, following the pattern
-    from the old implementation.
+    This method automatically generates a fresh page map if a browser is open,
+    then formats it into the system instructions. This ensures the agent always
+    has the most up-to-date view of the page before making decisions.
 
     Args:
       tool_context: The context of the tool.
@@ -277,18 +247,48 @@ class BrowserToolset(BaseToolset):
     if not self._inject_page_map_in_prompt:
       return
 
-    page_map_data = tool_context.session.state.get('_browser_page_map')
-    if not page_map_data:
+    # Get the appropriate browser for this session
+    browser = None
+    if tool_context.session:
+      if tool_context.session.id in self._session_browsers:
+        browser = self._session_browsers[tool_context.session.id]
+      elif self._shared_browser:
+        browser = self._shared_browser
+      elif self._fallback_browser:
+        browser = self._fallback_browser
+    elif self._shared_browser:
+      browser = self._shared_browser
+    elif self._fallback_browser:
+      browser = self._fallback_browser
+
+    # No browser open, nothing to inject
+    if not browser:
       return
+
+    # Generate fresh page map if auto-generation is enabled
+    if self._auto_generate_page_map:
+      try:
+        page_map_data = browser.generate_page_map(map_type=self._page_map_mode)
+        url = browser.get_current_url()
+        title = browser.get_page_title()
+        logger.debug('Auto-generated page map before LLM request')
+      except Exception as e:
+        logger.warning(f'Failed to auto-generate page map: {e}')
+        return
+    else:
+      # If auto-generation is disabled, try to use cached data
+      page_map_data = tool_context.session.state.get('_browser_page_map')
+      if not page_map_data:
+        return
+      url = tool_context.session.state.get('_browser_url')
+      title = tool_context.session.state.get('_browser_title')
 
     # Unpack the tuple: (page_elements, interactive_string, content_string, api_string)
     page_elements, interactive_string, content_string, api_string = (
         page_map_data
     )
-    url = tool_context.session.state.get('_browser_url')
-    title = tool_context.session.state.get('_browser_title')
 
-    # Format like the old implementation
+    # Format the page map for injection
     page_map_text = 'CURRENT PAGE CONTENT:\n'
     if page_elements and len(page_elements) > 0:
       page_map_text += f'Page title: "{title}"\n'
