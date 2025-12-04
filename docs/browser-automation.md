@@ -75,31 +75,38 @@ This means you write your agent once, and it works correctly in both environment
 
 Agents get these browser tools automatically:
 
-| Tool                                     | Description                                   |
-| ---------------------------------------- | --------------------------------------------- |
-| `navigate_to(url)`                       | Navigate to a URL                             |
-| `click_element(selector)`                | Click element by CSS selector or XPath        |
-| `type_text(selector, text, clear_first)` | Type text into an element                     |
-| `press_keys(selector, keys)`             | Send keyboard input (Arrow keys, Enter, etc.) |
-| `scroll_to_element(selector)`            | Scroll element into view                      |
-| `generate_page_map()` (optional)         | Manually analyze page (rarely needed)         |
+| Tool                                         | Description                                   |
+| -------------------------------------------- | --------------------------------------------- |
+| `navigate_to(url)`                           | Navigate to a URL                             |
+| `click_element(selector/ref)`                | Click element by CSS selector, XPath, or ref  |
+| `type_text(text, selector/ref, clear_first)` | Type text into an element                     |
+| `press_keys(keys, selector/ref)`             | Send keyboard input (Arrow keys, Enter, etc.) |
+| `scroll_to_element(selector/ref)`            | Scroll element into view                      |
+
+> [!TIP] > **Using Refs for Token Efficiency**
+>
+> All interaction tools accept either a `selector` (CSS/XPath) or `ref` (page map reference).
+> When the page map shows `[ref=5]`, you can use `ref="5"` instead of the full CSS selector.
+> This is preferred as it saves tokens and is more reliable.
 
 > [!NOTE] > **Automatic Page Maps**
 >
-> Page maps are **automatically generated** after `navigate_to()`, `click_element()`, and `press_keys()` actions.
+> Page maps are **automatically generated** after **every** browser tool call as an internal utility.
 > The agent receives the page structure in its system instructions before each LLM request.
-> You rarely need to call `generate_page_map()` manually.
+> This happens automatically without requiring any tool calls.
 
 ## Automatic Page Map Generation
 
-The browser module automatically generates page maps after browser actions and injects them into the agent's system instructions.
+The browser module automatically generates page maps before each LLM request if a browser is open, and injects them into the agent's system instructions.
 
 ### How It Works
 
-1. **Trigger**: Agent calls `navigate_to()`, `click_element()`, or `press_keys()`
-2. **Auto-Generate**: Page map is automatically created
-3. **Inject**: Before next LLM request, page map is added to system instructions
+1. **Browser Open**: Agent has an active browser session (from any previous browser tool call)
+2. **Before LLM Request**: Page map is automatically generated from the current page state
+3. **Inject**: Page map is added to system instructions before the LLM sees the request
 4. **Agent Sees**: Current page structure with interactive elements and content
+
+This approach is simpler and more efficient - the page map is always fresh and only generated when needed (right before the agent makes decisions).
 
 ### What the Agent Receives
 
@@ -209,17 +216,24 @@ async def delete_session(app_name: str, user_id: str, session_id: str):
 
 ### Element Selection
 
-Two ways to interact with elements:
+Three ways to interact with elements:
 
-1. **CSS Selectors**: `#id`, `.class`, `button[type="submit"]`
-2. **XPath**: `//button[@id='submit']`, `//div[@class='container']//a`
+1. **Refs** (Recommended): `ref="5"` - Use the ref number from the page map
+2. **CSS Selectors**: `#id`, `.class`, `button[type="submit"]`
+3. **XPath**: `//button[@id='submit']`, `//div[@class='container']//a`
+
+> [!TIP]
+> Prefer using `ref` when available - it's more concise and saves tokens!
 
 ### Keyboard Input
 
 ```python
-# Send special keys
-press_keys(selector, "Enter")
-press_keys(selector, ["ArrowDown", "ArrowDown", "Enter"])
+# Send special keys using ref
+press_keys(keys="Enter", ref="5")
+press_keys(keys=["ArrowDown", "ArrowDown", "Enter"], ref="5")
+
+# Or using selector
+press_keys(keys="Enter", selector="#my-input")
 
 # Supported keys: ArrowUp, ArrowDown, ArrowLeft, ArrowRight,
 # Enter, Escape, Tab, Space, PageDown, PageUp, Home, End
@@ -232,7 +246,6 @@ The page map optionally captures API requests:
 ```python
 BrowserToolset(
     browser_options=...,
-    enable_page_map=True,
     enable_network_capture=True,  # Capture XHR/Fetch requests
 )
 ```
@@ -244,15 +257,16 @@ BrowserToolset(
 ```python
 instruction = """You are a web automation assistant with browser capabilities.
 
-Available tools:
+Available tools (all accept either 'selector' CSS/XPath OR 'ref' from page map):
 - navigate_to(url): Navigate to a URL
-- click_element(selector): Click element by CSS selector or XPath
-- type_text(selector, text, clear_first): Type into an element
-- press_keys(selector, keys): Send keyboard input
-- scroll_to_element(selector): Scroll to element
+- click_element(selector/ref): Click element by CSS selector, XPath, or ref
+- type_text(text, selector/ref, clear_first): Type into an element
+- press_keys(keys, selector/ref): Send keyboard input
+- scroll_to_element(selector/ref): Scroll to element
 
 The page map is automatically provided in your system instructions after each action.
-Use the element selectors from the INTERACTIVE ELEMENTS section to interact with the page.
+When you see [ref=5], you can use ref="5" instead of the full CSS selector.
+Prefer using refs as they save tokens and are more reliable.
 
 Keep responses concise and focused on the task."""
 ```
@@ -265,7 +279,7 @@ Keep responses concise and focused on the task."""
 User: "Go to example.com and tell me what links are available"
 Agent:
 1. Calls navigate_to("https://example.com")
-2. Automatically receives page map in system instructions
+2. Page map automatically generated after navigation
 3. Analyzes INTERACTIVE ELEMENTS section
 4. Reports available links
 ```
@@ -275,10 +289,10 @@ Agent:
 ```
 User: "Fill out the login form with username 'test' and password 'pass123'"
 Agent:
-1. Sees form fields in INTERACTIVE ELEMENTS from page map
-2. Calls type_text("#username", "test")
-3. Calls type_text("#password", "pass123")
-4. Calls click_element("#submit-btn")
+1. Sees form fields in INTERACTIVE ELEMENTS from page map with refs like [ref=3], [ref=4]
+2. Calls type_text("test", ref="3") → page map updated
+3. Calls type_text("pass123", ref="4") → page map updated
+4. Calls click_element(ref="5") → page map updated (for submit button)
 ```
 
 ### Multi-Step Navigation
@@ -286,12 +300,11 @@ Agent:
 ```
 User: "Go to github.com, search for 'python', and click the first result"
 Agent:
-1. Calls navigate_to("https://github.com")
-2. Automatically receives page map
-3. Calls type_text(".search-input", "python")
-4. Calls press_keys(".search-input", "Enter")
-5. Waits for page load, automatically receives updated page map
-6. Calls click_element on first result
+1. Calls navigate_to("https://github.com") → page map generated
+2. Calls type_text(".search-input", "python") → page map updated
+3. Calls press_keys(".search-input", "Enter") → page map updated
+4. Page changes, fresh page map automatically available
+5. Calls click_element on first result → page map updated
 ```
 
 ## PageParser Intelligence
@@ -337,10 +350,8 @@ src/google/adk/tools/browser/
 ├── base_browser.py          # Abstract interface
 ├── browser_tool.py          # Tool wrapper
 ├── browser_toolset.py       # Session-aware toolset
-└── implementations/
-    ├── browser.py           # SeleniumBase browser
-    ├── page_parser.py       # Page analysis
-    └── seleniumbase_browser.py  # Adapter
+├── seleniumbase_browser.py  # SeleniumBase implementation
+└── page_parser.py           # Page analysis
 
 playground/
 └── browser_agent.py         # Example agent
