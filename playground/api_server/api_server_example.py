@@ -26,7 +26,7 @@ from google.adk.agents import Agent
 from google.adk.runners import InMemoryRunner
 from google.adk.apps import App
 from google.adk.tools.browser import BrowserToolset
-from google.adk.tools.browser.implementations import BrowserOptions, BrowserConfig
+from google.adk.tools.browser import BrowserOptions, BrowserConfig
 from google.genai import types
 
 
