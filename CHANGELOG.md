@@ -13,12 +13,22 @@ All notable changes to the **agnt** project will be documented in this file.
 ### Added
 
 - **Programmatic Agent Execution** - Added convenience methods to run agents directly from code
+
   - `BaseAgent.run()` - Synchronous execution for simple scripts
   - `BaseAgent.run_async_simple()` - Asynchronous execution
   - `BaseAgent.run_cli()` - Interactive CLI mode for chat sessions
   - `BaseAgent._load_dotenv()` - Automatic `.env` file loading
   - All methods support automatic environment variable loading from `.env` files
   - Works from any directory (uses `sys.argv[0]` to locate script)
+
+- **Browser Automation**
+
+  - Added automatic page map generation to provide agents with simplified views of web pages
+  - Added `PageParser` for robust HTML parsing and element extraction
+  - Refactored browser module structure for better maintainability
+
+- **Debugging**
+  - Added `DebugPlugin` to inspect and log LLM requests and responses for easier debugging
 
 ### Documentation
 
@@ -28,11 +38,13 @@ All notable changes to the **agnt** project will be documented in this file.
   - `agent-module.md` - Agent module structure reference
   - `runner-module.md` - Runner system reference
   - `README.md` - Overview and navigation
+  - `agent-api-reference.md` - Comprehensive API reference including WebSocket protocols and function call detection
 
 ### Changed
 
 - Environment variable loading now searches from script location first (matches `adk run` behavior)
 - Improved `.env` file discovery for better developer experience
+- Updated example agents to use new browser patterns
 
 ---
 
