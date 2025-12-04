@@ -1,10 +1,15 @@
-[ ] browser : agnet shouldnt have to manualyl genreate page map, it's sometihng that autoamtically happens before nad after any browser action
-also, do we include page mapsi n prompts? reimplement what we were doing in the ai scrpaing backend
+- [x] DebugPlugin
 
-[ ] FIX agent not really receiving the page map
-[ ] a way to debug sent system instructions (with a plugin)
-[ ] simplfy debugging, no need for too much options
+  - [x] Implement plugin to capture system instructions
+  - [x] Add documentation and example
 
-[ ] page map should alwyas be generated before and after any action, if the browser is open
-[ ] agnet stil manually calls generate_page_map(), remove that
-[ ] fix refs not working (due to not porting the tools module)
+- [ ] Browser Module Refactoring
+
+  - [x] Restructure module (remove implementations/ subdirectory)
+  - [x] Add PageParser with ref-based element tracking
+  - [x] Add ref parameter support to browser interface
+  - [x] Remove manual generate_page_map() calls from agent
+
+- [x] Documentation
+  - [x] Update browser automation docs with new structure
+  - [x] Add DebugPlugin documentation
