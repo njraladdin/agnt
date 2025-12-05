@@ -17,7 +17,6 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 from typing import Any
 
 from google.genai import types
@@ -25,7 +24,6 @@ from typing_extensions import override
 
 from ..function_tool import FunctionTool
 from ..tool_context import ToolContext
-from .base_browser import BrowserState
 
 logger = logging.getLogger('google_adk.' + __name__)
 
@@ -65,63 +63,66 @@ class BrowserTool(FunctionTool):
   async def run_async(
       self, *, args: dict[str, Any], tool_context: ToolContext
   ) -> Any:
-    """Run browser function and format response.
-
-    This method executes the browser function, saves any screenshot as an
-    artifact, and formats the response for LLM consumption.
-
-    Screenshots are saved as a single versioned artifact. The artifact_delta
-    in the event will indicate when the screenshot has been updated, allowing
-    frontends to fetch the latest version via the artifact API.
+    """Run browser function and save screenshot as artifact.
 
     Args:
       args: Arguments for the browser function.
       tool_context: Context for the tool execution.
 
     Returns:
-      Formatted response with URL, title, and screenshot artifact info.
+      Response dict with result, URL, title, and screenshot artifact info.
     """
     # Execute the browser function
     result = await super().run_async(args=args, tool_context=tool_context)
 
-    # If result is BrowserState, format for LLM
-    if isinstance(result, BrowserState):
-      response = {
-          'url': result.url,
-          'title': result.title,
-      }
+    # Get browser from the wrapped function's self reference
+    browser = getattr(self.func, '__self__', None)
+    if not browser or not self._save_screenshot_as_artifact:
+      return result
 
-      # Save screenshot as artifact if available
-      if self._save_screenshot_as_artifact and result.screenshot_path:
-        try:
-          screenshot_path = Path(result.screenshot_path)
-          if screenshot_path.exists():
-            screenshot_data = screenshot_path.read_bytes()
-            
-            # Save as artifact - this automatically populates artifact_delta
-            version = await tool_context.save_artifact(
-                BROWSER_SCREENSHOT_ARTIFACT,
-                types.Part(
-                    inline_data=types.Blob(
-                        mime_type='image/png',
-                        data=screenshot_data,
-                    )
-                ),
-            )
-            
-            # Include artifact reference in response (not the actual data)
-            response['screenshot'] = {
+    try:
+      # Get screenshot bytes directly (no disk I/O)
+      screenshot_bytes = browser.get_screenshot_bytes()
+      if not screenshot_bytes:
+        return result
+
+      # Save as artifact
+      version = await tool_context.save_artifact(
+          BROWSER_SCREENSHOT_ARTIFACT,
+          types.Part(
+              inline_data=types.Blob(
+                  mime_type='image/png',
+                  data=screenshot_bytes,
+              )
+          ),
+      )
+
+      logger.info('Saved screenshot artifact v%d', version)
+
+      # Get current state for URL/title
+      state = browser.get_current_state()
+
+      # Return enhanced response with artifact info
+      if isinstance(result, bool):
+        return {
+            'result': result,
+            'url': state.url,
+            'title': state.title,
+            'screenshot': {
                 'artifact': BROWSER_SCREENSHOT_ARTIFACT,
                 'version': version,
-            }
-            logger.debug(
-                'Saved screenshot as artifact %s version %d',
-                BROWSER_SCREENSHOT_ARTIFACT,
-                version,
-            )
-        except Exception as e:
-          logger.warning('Failed to save screenshot as artifact: %s', e)
+            },
+        }
+      elif isinstance(result, dict):
+        result['screenshot'] = {
+            'artifact': BROWSER_SCREENSHOT_ARTIFACT,
+            'version': version,
+        }
+        return result
 
-      return response
+      return result
 
-    return result
+    except Exception as e:
+      logger.error('Failed to save screenshot artifact: %s', e)
+      return result
+

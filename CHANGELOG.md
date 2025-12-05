@@ -31,6 +31,21 @@ All notable changes to the **agnt** project will be documented in this file.
 - **Debugging**
   - Added `DebugPlugin` to inspect and log LLM requests and responses for easier debugging
 
+### Changed
+
+- **Browser Automation** - Streamlined screenshot handling (breaking change)
+
+  - `BrowserState.screenshot_path` → `BrowserState.screenshot_bytes` (now stores PNG bytes directly)
+  - Removed `BrowserState.page_map_data` field (unused)
+  - Removed file-based screenshot methods: `take_screenshot()`, `take_auto_screenshot()`, `get_latest_screenshot_path()`
+  - Added `SeleniumBaseBrowser.get_screenshot_bytes()` for direct PNG bytes from driver
+  - Screenshots no longer touch disk - captured directly from driver and saved as artifacts
+  - Net result: ~55 lines removed, cleaner code, no temporary file I/O
+
+- Environment variable loading now searches from script location first (matches `adk run` behavior)
+- Improved `.env` file discovery for better developer experience
+- Updated example agents to use new browser patterns
+
 ### Documentation
 
 - Added `docs/` folder with quick reference documentation:
@@ -40,12 +55,6 @@ All notable changes to the **agnt** project will be documented in this file.
   - `runner-module.md` - Runner system reference
   - `README.md` - Overview and navigation
   - `agent-api-reference.md` - Comprehensive API reference including WebSocket protocols and function call detection
-
-### Changed
-
-- Environment variable loading now searches from script location first (matches `adk run` behavior)
-- Improved `.env` file discovery for better developer experience
-- Updated example agents to use new browser patterns
 
 ---
 

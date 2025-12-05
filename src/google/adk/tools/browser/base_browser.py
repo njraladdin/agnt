@@ -32,24 +32,21 @@ class BrowserState(pydantic.BaseModel):
   """Represents the current state of the browser.
 
   Attributes:
-    screenshot_path: Path to the screenshot file in PNG format.
     url: The current URL of the webpage being displayed.
     title: The current page title.
-    page_map_data: Optional page element map data for context.
+    screenshot_bytes: Optional PNG screenshot as bytes.
   """
 
-  screenshot_path: Optional[str] = pydantic.Field(
-      default=None, description="Path to screenshot in PNG format"
-  )
   url: Optional[str] = pydantic.Field(
       default=None, description="Current webpage URL"
   )
   title: Optional[str] = pydantic.Field(
       default=None, description="Current page title"
   )
-  page_map_data: Optional[Dict[str, Any]] = pydantic.Field(
-      default=None, description="Page element map data"
+  screenshot_bytes: Optional[bytes] = pydantic.Field(
+      default=None, description="PNG screenshot as bytes"
   )
+
 
 
 @experimental
@@ -217,7 +214,7 @@ class BaseBrowser(abc.ABC):
     """Get the current state of the browser.
 
     Returns:
-      BrowserState object containing current URL, title, and screenshot path.
+      BrowserState object containing current URL, title, and optional screenshot bytes.
     """
 
   @abc.abstractmethod

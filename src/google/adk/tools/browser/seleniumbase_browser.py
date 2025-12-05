@@ -102,14 +102,6 @@ class SeleniumBaseBrowser(BaseBrowser):
         else:
             logger.info(f"Using existing Chrome profile directory at: {self.user_data_dir}")
         
-        # Set up screenshots directory
-        self.screenshots_dir = os.path.join(os.getcwd(), 'screenshots')
-        if not os.path.exists(self.screenshots_dir):
-            os.makedirs(self.screenshots_dir, exist_ok=True)
-            logger.info(f"Created screenshots directory at: {self.screenshots_dir}")
-        
-        # Track latest screenshot
-        self.latest_screenshot_path: Optional[str] = None
         # Track last clicked selector to help focus for subsequent key presses
         self.last_clicked_selector: Optional[str] = None
 
@@ -159,9 +151,6 @@ class SeleniumBaseBrowser(BaseBrowser):
             # Format API requests for LLM
             api_map_string = self._format_api_requests_for_llm(network_requests)
 
-        # Automatically take a screenshot after generating page map
-        self.take_auto_screenshot()
-
         return all_elements, interactive_map_string, content_map_string, api_map_string
 
     @override
@@ -187,12 +176,11 @@ class SeleniumBaseBrowser(BaseBrowser):
         """Get the current state of the browser.
         
         Returns:
-            BrowserState object containing current URL, title, and screenshot path.
+            BrowserState object containing current URL and title.
         """
         return BrowserState(
             url=self.get_current_url() or '',
             title=self.get_page_title() or '',
-            screenshot_path=self.latest_screenshot_path
         )
 
     async def start(self) -> bool:
@@ -469,71 +457,54 @@ class SeleniumBaseBrowser(BaseBrowser):
             # Re-raise the exception so _cmd_execute_js_script can handle it properly
             raise e
 
-    def take_screenshot(self, filename: Optional[str] = None) -> bool:
+    def wait_for_page_ready(self, timeout: float = 3.0) -> bool:
         """
-        Take a screenshot of the current page
+        Wait for page to be ready (document loaded + brief render buffer).
         
         Args:
-            filename: Optional filename for the screenshot
+            timeout: Maximum seconds to wait for document.readyState
             
         Returns:
-            True if successful, False otherwise
+            True if page is ready, False if timeout
         """
         if not self.driver:
             return False
         
         try:
-            if filename is None:
-                filename = f"screenshot_{int(time.time())}.png"
-            
-            # Use full path if not already provided
-            if not os.path.isabs(filename):
-                filename = os.path.join(self.screenshots_dir, filename)
-            
-            self.driver.save_screenshot(filename)
-            logger.info(f"Screenshot saved as: {filename}")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Error taking screenshot: {e}")
+            # Wait for document.readyState === 'complete'
+            end_time = time.time() + timeout
+            while time.time() < end_time:
+                ready_state = self.driver.execute_script("return document.readyState")
+                if ready_state == "complete":
+                    # Small buffer for JS rendering to finish
+                    time.sleep(0.15)
+                    return True
+                time.sleep(0.05)
+            return False
+        except Exception:
             return False
 
-    def take_auto_screenshot(self, filename_prefix: str = "auto_screenshot") -> Optional[str]:
+    def get_screenshot_bytes(self, wait_for_ready: bool = True) -> Optional[bytes]:
         """
-        Automatically take a screenshot with timestamp and store the path
+        Get screenshot of the current page as PNG bytes.
         
         Args:
-            filename_prefix: Optional prefix for the screenshot filename
+            wait_for_ready: If True, wait for page to finish loading first.
         
         Returns:
-            Path to the screenshot file if successful, None otherwise
+            PNG image bytes, or None if browser not initialized.
         """
         if not self.driver:
             return None
         
         try:
-            timestamp = int(time.time() * 1000)  # Use milliseconds for uniqueness
-            filename = f"{filename_prefix}_{timestamp}.png"
-            filepath = os.path.join(self.screenshots_dir, filename)
-            
-            self.driver.save_screenshot(filepath)
-            self.latest_screenshot_path = filepath
-            logger.info(f"Auto screenshot saved: {filename}")
-            return filepath
-            
+            if wait_for_ready:
+                self.wait_for_page_ready()
+            return self.driver.get_screenshot_as_png()
         except Exception as e:
-            logger.error(f"Error taking auto screenshot: {e}")
+            logger.error(f"Error getting screenshot: {e}")
             return None
 
-    def get_latest_screenshot_path(self) -> Optional[str]:
-        """
-        Get the path to the latest screenshot
-        
-        Returns:
-            Path to the latest screenshot or None
-        """
-        return self.latest_screenshot_path
-# In browser.py
 
     def click_element(self, selector: Optional[str] = None, *, ref: Optional[str] = None) -> bool:
         """
