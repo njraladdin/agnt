@@ -212,6 +212,89 @@ async def delete_session(app_name: str, user_id: str, session_id: str):
             await tool.close_session_browser(session_id)
 ```
 
+## Screenshot Artifacts
+
+Browser screenshots are automatically saved as **artifacts** after each browser action. This enables frontends to display a live view of what the browser is seeing.
+
+### How It Works
+
+1. **Browser takes screenshot** after each action (navigate, click, type, etc.)
+2. **Screenshot saved as artifact** named `browser_screenshot` (single artifact, versioned)
+3. **Event includes `artifactDelta`** so frontends know when the screenshot changed
+4. **Frontend fetches artifact** via the artifact API to display
+
+### Frontend Integration
+
+Watch for artifact changes in events and fetch the updated screenshot:
+
+```javascript
+// Process events from agent
+events.forEach((event) => {
+  if (event.actions?.artifactDelta?.browser_screenshot) {
+    const version = event.actions.artifactDelta.browser_screenshot;
+    console.log(`Screenshot updated to version ${version}`);
+
+    // Fetch and display the screenshot
+    fetchAndDisplayScreenshot();
+  }
+});
+
+async function fetchAndDisplayScreenshot() {
+  const response = await fetch(
+    `${BASE_URL}/apps/${appName}/users/${userId}/sessions/${sessionId}/artifacts/browser_screenshot`
+  );
+  const artifact = await response.json();
+
+  // artifact.inlineData.data contains base64-encoded PNG
+  if (artifact.inlineData) {
+    const imgSrc = `data:${artifact.inlineData.mimeType};base64,${artifact.inlineData.data}`;
+    document.getElementById("browser-preview").src = imgSrc;
+  }
+}
+```
+
+### React Example
+
+```jsx
+function BrowserPreview({ baseUrl, appName, userId, sessionId }) {
+  const [screenshotSrc, setScreenshotSrc] = useState(null);
+  const [version, setVersion] = useState(0);
+
+  // Call this when processing events
+  const onArtifactDelta = useCallback((artifactDelta) => {
+    if (artifactDelta?.browser_screenshot) {
+      setVersion(artifactDelta.browser_screenshot);
+    }
+  }, []);
+
+  // Fetch screenshot when version changes
+  useEffect(() => {
+    if (version === 0) return;
+
+    fetch(
+      `${baseUrl}/apps/${appName}/users/${userId}/sessions/${sessionId}/artifacts/browser_screenshot`
+    )
+      .then((res) => res.json())
+      .then((artifact) => {
+        if (artifact.inlineData) {
+          setScreenshotSrc(
+            `data:${artifact.inlineData.mimeType};base64,${artifact.inlineData.data}`
+          );
+        }
+      });
+  }, [version, baseUrl, appName, userId, sessionId]);
+
+  return (
+    <div className="browser-preview">
+      {screenshotSrc && <img src={screenshotSrc} alt="Browser view" />}
+    </div>
+  );
+}
+```
+
+> [!TIP]
+> The `browser_screenshot` artifact is a single versioned artifact. Each browser action creates a new version, but you don't need to track versions yourself—just fetch the latest when `artifactDelta` indicates a change.
+
 ## Advanced Features
 
 ### Element Selection

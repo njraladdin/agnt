@@ -71,3 +71,40 @@ https://arxiv.org/abs/2511.20857
    - Format 1 (Prune): `Think-Prune: <IDs>` -> Remove bad context.
    - Format 2 (Reason): `Think: <Reasoning>` -> Standard CoT.
    - Format 3 (Execute): `Action: <Command>` -> Standard Tool use.
+     Here is the text formatted to match your existing `notes.md` style perfectly. I have focused on the architectural and practical application of the concepts.
+
+---
+
+## CONTEXT-AWARE AUTOMATION PROTOCOLS (THE "VACUUM FALLACY")
+
+https://www.reddit.com/r/n8n/comments/1pe314d/i_built_50_automations_that_clients_never_used/
+
+**1. THE "LOOK LEFT / LOOK RIGHT" AUDIT**
+Never build the "Middle" (the automation logic) until you have audited the Edges.
+
+- **Look Left (Upstream Constraints):**
+  - **Audit Input Rigidity:** Do not assume incoming data exists. Verify the _source_ (e.g., the web form).
+  - **The "Optional Field" Trap:** If a field is optional upstream, the automation must have a fallback logic path or the upstream form must be changed to "Required."
+- **Look Right (Downstream Utility):**
+  - **Audit Human Action:** What is the _exact_ next physical step the human must take?
+  - **Data Sufficiency:** Does the output provide 100% of the context required to take that step (e.g., Budget + Location), or does it force the human to dig for more info?
+
+**2. AGENT "ONBOARDING" (THE NEW HIRE FRAMEWORK)**
+Stop prompting LLMs as "Chatbots." Prompt them as "Salaried Employees" with strict Standard Operating Procedures (SOPs).
+
+- **The Job Description Prompt:**
+  - **Role:** Define specific title (e.g., "Level 1 Lead Qualifier," not "Helpful Assistant").
+  - **Goal:** Define the exact binary outcome required (e.g., "Extract Budget and Timeline").
+  - **Constraints:** Define what they _cannot_ do (e.g., "Do not store data if budget < $5k").
+- **Structured Routing:**
+  The Agent must classify inputs into distinct outcomes (Hot, Warm, Discard) rather than just "replying."
+
+**3. ADOPTION HEURISTICS (PROCESS FIT OVER TOOLING)**
+Adoption is a function of friction. The goal is to accelerate the _current_ process, not invent a new one.
+
+- **The "Zero-Login" Rule:**
+  If the user has to log in to a new dashboard to see your data, the automation will die.
+- **Workflow Injection:**
+  Push data into the tools they already stare at (Slack, WhatsApp, CRM comments) rather than creating new interfaces.
+- **Success Metric:**
+  Shift KPI from "Deployment Logs (No Errors)" to "Daily Active Usage."

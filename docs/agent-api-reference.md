@@ -590,7 +590,36 @@ interface FunctionResponse {
 ```typescript
 interface EventActions {
   stateDelta?: Record<string, any>; // State changes
+  artifactDelta?: Record<string, number>; // Artifact changes (filename -> version)
   skipSummarization?: boolean; // Skip event summarization
+}
+```
+
+The `artifactDelta` field indicates artifacts that were created or updated during this event. The key is the artifact filename, and the value is the new version number. This allows frontends to detect artifact changes and fetch updated content via the artifact API.
+
+**Example: Watching for artifact changes**
+
+```javascript
+// Process events from agent
+events.forEach((event) => {
+  // Check if any artifacts were created/updated
+  if (event.actions?.artifactDelta) {
+    for (const [filename, version] of Object.entries(
+      event.actions.artifactDelta
+    )) {
+      console.log(`Artifact "${filename}" updated to version ${version}`);
+
+      // Fetch the updated artifact
+      fetchArtifact(filename);
+    }
+  }
+});
+
+async function fetchArtifact(filename) {
+  const response = await fetch(
+    `${BASE_URL}/apps/${appName}/users/${userId}/sessions/${sessionId}/artifacts/${filename}`
+  );
+  return await response.json();
 }
 ```
 
