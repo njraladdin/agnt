@@ -194,6 +194,12 @@ class BrowserToolset(BaseToolset):
         BrowserTool(browser.wait_for_element),
         BrowserTool(browser.check_element_exists),
         BrowserTool(browser.wait_for_element_to_change),
+        BrowserTool(
+            browser.execute_js_script,
+            save_screenshot_as_artifact=False,
+            save_result_as_artifact=True,
+            result_artifact_name='js_extraction_result',
+        ),
     ]
 
     # Note: generate_page_map is now an internal utility only,

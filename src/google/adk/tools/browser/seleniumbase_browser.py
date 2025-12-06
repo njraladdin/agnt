@@ -438,7 +438,7 @@ class SeleniumBaseBrowser(BaseBrowser):
 
     def execute_script(self, script: str, *args) -> Any:
         """
-        Execute JavaScript in the browser
+        Execute JavaScript in the browser (internal use).
         
         Args:
             script: JavaScript code to execute
@@ -454,8 +454,75 @@ class SeleniumBaseBrowser(BaseBrowser):
             return self.driver.execute_script(script, *args)
         except Exception as e:
             logger.error(f"Error executing script: {e}")
-            # Re-raise the exception so _cmd_execute_js_script can handle it properly
             raise e
+
+    def execute_js_script(self, script: str) -> Dict[str, Any]:
+        """Execute JavaScript on the page to extract data or perform actions.
+        
+        Use this tool when you need to extract structured data from the page
+        that isn't available in the page map, or to perform custom actions.
+        
+        Your script should use `return` to send data back. The returned value
+        can be any JSON-serializable type (string, number, array, object, etc.).
+        
+        Common data extraction patterns:
+        
+        1. Extract text from multiple elements:
+           ```javascript
+           return Array.from(document.querySelectorAll('.product-name'))
+               .map(el => el.textContent.trim());
+           ```
+        
+        2. Extract structured data (e.g., products with name and price):
+           ```javascript
+           return Array.from(document.querySelectorAll('.product-card')).map(card => ({
+               name: card.querySelector('.name')?.textContent?.trim(),
+               price: card.querySelector('.price')?.textContent?.trim(),
+               url: card.querySelector('a')?.href
+           }));
+           ```
+        
+        3. Extract table data as 2D array:
+           ```javascript
+           return Array.from(document.querySelectorAll('table tbody tr')).map(row =>
+               Array.from(row.querySelectorAll('td')).map(cell => cell.textContent.trim())
+           );
+           ```
+        
+        4. Get page metadata:
+           ```javascript
+           return {
+               title: document.title,
+               description: document.querySelector('meta[name="description"]')?.content,
+               canonicalUrl: document.querySelector('link[rel="canonical"]')?.href
+           };
+           ```
+        
+        5. Extract links matching a pattern:
+           ```javascript
+           return Array.from(document.querySelectorAll('a[href]'))
+               .filter(a => a.href.includes('/product/'))
+               .map(a => ({ text: a.textContent.trim(), url: a.href }));
+           ```
+        
+        Args:
+            script: JavaScript code to execute. Must use `return` to get values back.
+        
+        Returns:
+            A dictionary containing:
+            - success: bool - Whether the script executed successfully
+            - result: Any - The return value from your JavaScript (if success)
+            - error: str - Error message (if failed)
+        """
+        if not self.driver:
+            return {'success': False, 'error': 'Browser not initialized'}
+        
+        try:
+            result = self.driver.execute_script(script)
+            return {'success': True, 'result': result}
+        except Exception as e:
+            logger.error(f"Error executing JS script: {e}")
+            return {'success': False, 'error': str(e)}
 
     def wait_for_page_ready(self, timeout: float = 3.0) -> bool:
         """

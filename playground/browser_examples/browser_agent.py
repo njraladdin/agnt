@@ -28,7 +28,7 @@ load_dotenv()
 
 # Configure logging to show INFO level for google_adk
 logging.basicConfig(
-    level=logging.DEBUG,  # Set root logger to WARNING
+    level=logging.INFO,  # Set root logger to WARNING
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 # Enable INFO level specifically for google_adk
@@ -54,15 +54,7 @@ async def main_async():
       description='Web automation agent with browser control',
       instruction="""You are a web automation assistant with browser capabilities.
 
-Available tools (all accept either 'selector' CSS/XPath OR 'ref' from page map):
-- navigate_to(url): Navigate to a URL
-- click_element(selector/ref): Click element by CSS selector, XPath, or ref
-- type_text(text, selector/ref, clear_first): Type into an element
-- press_keys(keys, selector/ref): Send keyboard input
-- scroll_to_element(selector/ref): Scroll to element
 
-When the page map shows elements with refs like [ref=5], you can use ref="5" instead of 
-the full CSS selector. This is preferred as it saves tokens and is more reliable.
 
 """,
       tools=[
@@ -72,7 +64,8 @@ the full CSS selector. This is preferred as it saves tokens and is more reliable
                       headless=False,  # Set to True for headless mode
                       undetectable=True,
                       incognito=True,
-                  )
+                  ),
+                  page_map_mode='rich'
               )
           )
       ],

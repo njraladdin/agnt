@@ -299,3 +299,20 @@ class BaseBrowser(abc.ABC):
         - changes: dict - Details of what changed (text, html, url, id)
         - error: str (optional) - Error message if operation failed
     """
+
+  @abc.abstractmethod
+  def execute_js_script(self, script: str) -> Dict[str, Any]:
+    """Execute JavaScript on the page to extract data or perform actions.
+
+    Use this method when you need to extract structured data from the page
+    that isn't available in the page map, or to perform custom DOM operations.
+
+    Args:
+      script: JavaScript code to execute. Must use `return` to get values back.
+
+    Returns:
+      A dictionary containing:
+        - success: bool - Whether the script executed successfully
+        - result: Any - The return value from your JavaScript (if success)
+        - error: str - Error message (if failed)
+    """

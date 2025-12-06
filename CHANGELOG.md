@@ -26,6 +26,8 @@ All notable changes to the **agnt** project will be documented in this file.
   - Added automatic page map generation to provide agents with simplified views of web pages
   - Added `PageParser` for robust HTML parsing and element extraction
   - Added `wait_for_element`, `check_element_exists`, and `wait_for_element_to_change` tools for detecting dynamic content and page state changes
+  - Added `execute_js_script` tool for extracting structured data from pages via JavaScript
+  - Added `save_result_as_artifact` option to `BrowserTool` for storing tool results as JSON artifacts
   - Refactored browser module structure for better maintainability
 
 - **Debugging**
