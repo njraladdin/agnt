@@ -32,6 +32,7 @@ logger = logging.getLogger('google_adk.' + __name__)
 # Artifact names (single artifacts, versioned)
 BROWSER_SCREENSHOT_ARTIFACT = 'browser_screenshot'
 TOOL_RESULT_ARTIFACT = 'tool_result'
+SCRIPT_ARTIFACT = 'js_script'
 
 
 class BrowserTool(FunctionTool):
@@ -43,6 +44,7 @@ class BrowserTool(FunctionTool):
   Artifacts are saved as single versioned items:
   - 'browser_screenshot': PNG screenshot after browser actions
   - 'tool_result': JSON result from tools with save_result_as_artifact=True
+  - 'js_script': JavaScript code from tools with save_script_as_artifact=True
 
   The frontend can watch `artifactDelta` in events to know when artifacts
   have been updated and fetch them via the artifact API.
@@ -55,6 +57,8 @@ class BrowserTool(FunctionTool):
       save_screenshot_as_artifact: bool = True,
       save_result_as_artifact: bool = False,
       result_artifact_name: Optional[str] = None,
+      save_script_as_artifact: bool = False,
+      script_artifact_name: Optional[str] = None,
       **kwargs,
   ):
     """Initialize BrowserTool.
@@ -66,12 +70,18 @@ class BrowserTool(FunctionTool):
         Useful for tools that return structured data (e.g., execute_js_script).
       result_artifact_name: Custom name for the result artifact. If None,
         defaults to TOOL_RESULT_ARTIFACT ('tool_result').
+      save_script_as_artifact: Whether to save the 'script' argument as a
+        text artifact. Useful for execute_js_script to enable rerunning.
+      script_artifact_name: Custom name for the script artifact. If None,
+        defaults to SCRIPT_ARTIFACT ('js_script').
       **kwargs: Additional arguments to pass to FunctionTool.
     """
     super().__init__(func, **kwargs)
     self._save_screenshot_as_artifact = save_screenshot_as_artifact
     self._save_result_as_artifact = save_result_as_artifact
     self._result_artifact_name = result_artifact_name or TOOL_RESULT_ARTIFACT
+    self._save_script_as_artifact = save_script_as_artifact
+    self._script_artifact_name = script_artifact_name or SCRIPT_ARTIFACT
 
   @override
   async def run_async(
@@ -93,6 +103,10 @@ class BrowserTool(FunctionTool):
     browser = getattr(self.func, '__self__', None)
     if not browser:
       return result
+
+    # Save script as artifact if configured (do this first, before result)
+    if self._save_script_as_artifact and 'script' in args:
+      result = await self._save_script_artifact(args['script'], result, tool_context)
 
     # Save result as JSON artifact if configured
     if self._save_result_as_artifact:
@@ -163,6 +177,63 @@ class BrowserTool(FunctionTool):
 
     except Exception as e:
       logger.error('Failed to save result artifact: %s', e)
+
+    return result
+
+  async def _save_script_artifact(
+      self, script: str, result: Any, tool_context: ToolContext
+  ) -> Any:
+    """Save the script code as a text artifact.
+
+    Args:
+      script: The JavaScript code to save.
+      result: The result from the browser function.
+      tool_context: Context for the tool execution.
+
+    Returns:
+      The result, potentially enhanced with script artifact info.
+    """
+    try:
+      # Encode script as UTF-8 bytes
+      script_bytes = script.encode('utf-8')
+
+      # Save as artifact with text/javascript mime type
+      version = await tool_context.save_artifact(
+          self._script_artifact_name,
+          types.Part(
+              inline_data=types.Blob(
+                  mime_type='text/javascript',
+                  data=script_bytes,
+              )
+          ),
+      )
+
+      logger.info(
+          'Saved script artifact "%s" v%d (%d bytes)',
+          self._script_artifact_name,
+          version,
+          len(script_bytes),
+      )
+
+      # Add artifact info to result
+      if isinstance(result, dict):
+        result['script_artifact'] = {
+            'name': self._script_artifact_name,
+            'version': version,
+            'size_bytes': len(script_bytes),
+        }
+      else:
+        result = {
+            'result': result,
+            'script_artifact': {
+                'name': self._script_artifact_name,
+                'version': version,
+                'size_bytes': len(script_bytes),
+            },
+        }
+
+    except Exception as e:
+      logger.error('Failed to save script artifact: %s', e)
 
     return result
 

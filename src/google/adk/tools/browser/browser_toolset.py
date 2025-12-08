@@ -199,6 +199,8 @@ class BrowserToolset(BaseToolset):
             save_screenshot_as_artifact=False,
             save_result_as_artifact=True,
             result_artifact_name='js_extraction_result',
+            save_script_as_artifact=True,
+            script_artifact_name='js_extraction_script',
         ),
     ]
 
@@ -319,6 +321,21 @@ class BrowserToolset(BaseToolset):
 
     # Inject into system instructions
     llm_request.append_instructions([page_map_text])
+
+  def get_session_browser(self, session_id: str) -> Optional[BaseBrowser]:
+    """Get the browser instance for a specific session.
+
+    This method provides external access to the browser for a session,
+    useful for running artifacts or other direct browser operations
+    outside of the normal agent flow.
+
+    Args:
+      session_id: The session ID to get browser for.
+
+    Returns:
+      Browser instance if one exists for this session, None otherwise.
+    """
+    return self._session_browsers.get(session_id)
 
   async def close_session_browser(self, session_id: str) -> None:
     """Close browser for a specific session.
