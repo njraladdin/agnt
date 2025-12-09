@@ -1267,6 +1267,175 @@ class SeleniumBaseBrowser(BaseBrowser):
             logger.error(f"Error scrolling to element {resolved_selector}: {e}")
             return _error(str(e))
 
+    def scroll_page(
+        self,
+        direction: str = "down",
+        amount: Optional[int] = None,
+    ) -> ToolResult:
+        """
+        Scroll the page in a direction or by a specific pixel amount.
+        
+        Use this tool for general page scrolling, such as:
+        - Scrolling down to load more content (infinite scroll)
+        - Scrolling to the bottom of a page
+        - Scrolling up to return to top
+        
+        For scrolling TO a specific element, use scroll_to_element instead.
+        
+        Args:
+            direction: Direction to scroll - "down", "up", "top", or "bottom".
+                - "down": Scroll down by the viewport height (or by 'amount' if specified)
+                - "up": Scroll up by the viewport height (or by 'amount' if specified)
+                - "top": Scroll to the very top of the page
+                - "bottom": Scroll to the very bottom of the page
+            amount: Optional pixel amount to scroll. Only used with "down" or "up".
+                    If not specified, scrolls by viewport height.
+            
+        Returns:
+            ToolResult with success=True if scroll succeeded. Result contains
+            the new scroll position and page height info.
+        """
+        if not self.driver:
+            return _error("Browser not initialized")
+        
+        try:
+            script = """
+            const beforeY = window.scrollY;
+            const viewportHeight = window.innerHeight;
+            const pageHeight = document.body.scrollHeight;
+            const direction = arguments[0];
+            const amount = arguments[1];
+            
+            let scrollAmount = amount || viewportHeight*3;
+            
+            if (direction === 'top') {
+                window.scrollTo({ top: 0, behavior: 'instant' });
+            } else if (direction === 'bottom') {
+                window.scrollTo({ top: pageHeight, behavior: 'instant' });
+            } else if (direction === 'up') {
+                window.scrollBy({ top: -scrollAmount, behavior: 'instant' });
+            } else {
+                // Default: down
+                window.scrollBy({ top: scrollAmount, behavior: 'instant' });
+            }
+            
+            // Force a small delay to let scroll complete
+            return {
+                beforeY: beforeY,
+                afterY: window.scrollY,
+                pageHeight: pageHeight,
+                viewportHeight: viewportHeight,
+                scrolledBy: window.scrollY - beforeY,
+                atBottom: (window.scrollY + viewportHeight) >= pageHeight - 10
+            };
+            """
+            
+            result = self.driver.execute_script(script, direction, amount)
+            
+            logger.info(
+                f"Scrolled {direction}: {result.get('beforeY')}px → {result.get('afterY')}px "
+                f"(page height: {result.get('pageHeight')}px, at bottom: {result.get('atBottom')})"
+            )
+            
+            return _success(result)
+            
+        except Exception as e:
+            logger.error(f"Error scrolling page {direction}: {e}")
+            return _error(str(e))
+
+    def wait_for_element_count_change(
+        self,
+        selector: str,
+        timeout: int = 10,
+        expected_increase: int = 1,
+    ) -> ToolResult:
+        """
+        Wait until the count of elements matching a selector changes (increases).
+        
+        Use this tool to detect when new content has loaded, such as:
+        - Infinite scroll loading more items
+        - Search results populating
+        - Dynamic content appearing after an action
+        
+        The tool captures the current count, then polls until the count increases
+        or the timeout is reached. This is more reliable than arbitrary delays.
+        
+        Args:
+            selector: CSS selector to count elements (e.g., '.quote', '.product-card')
+            timeout: Maximum seconds to wait for count to change (default: 10)
+            expected_increase: Minimum increase required to consider it changed (default: 1)
+            
+        Returns:
+            ToolResult with success=True if count increased. Result contains:
+            - initial_count: Element count before waiting
+            - final_count: Element count after waiting
+            - increased_by: How many new elements appeared
+            - changed: Whether count increased by at least expected_increase
+        """
+        if not self.driver:
+            return _error("Browser not initialized")
+        
+        try:
+            # Escape selector for JavaScript
+            escaped_selector = selector.replace("'", "\\'")
+            
+            # Get initial count
+            initial_count = self.driver.execute_script(
+                f"return document.querySelectorAll('{escaped_selector}').length;"
+            )
+            
+            logger.info(f"Initial element count for '{selector}': {initial_count}")
+            
+            # Poll for count change
+            start_time = time.time()
+            check_interval = 0.3  # Check every 300ms
+            
+            while time.time() - start_time < timeout:
+                current_count = self.driver.execute_script(
+                    f"return document.querySelectorAll('{escaped_selector}').length;"
+                )
+                
+                if current_count >= initial_count + expected_increase:
+                    elapsed = time.time() - start_time
+                    logger.info(
+                        f"Element count changed: {initial_count} → {current_count} "
+                        f"(+{current_count - initial_count}) after {elapsed:.1f}s"
+                    )
+                    
+                    return _success({
+                        "initial_count": initial_count,
+                        "final_count": current_count,
+                        "increased_by": current_count - initial_count,
+                        "changed": True,
+                        "elapsed_time": elapsed,
+                    })
+                
+                time.sleep(check_interval)
+            
+            # Timeout reached
+            final_count = self.driver.execute_script(
+                f"return document.querySelectorAll('{escaped_selector}').length;"
+            )
+            elapsed = time.time() - start_time
+            
+            logger.info(
+                f"Timeout waiting for element count change: {initial_count} → {final_count} "
+                f"after {elapsed:.1f}s"
+            )
+            
+            return _success({
+                "initial_count": initial_count,
+                "final_count": final_count,
+                "increased_by": final_count - initial_count,
+                "changed": False,
+                "elapsed_time": elapsed,
+                "timeout_reached": True,
+            })
+            
+        except Exception as e:
+            logger.error(f"Error waiting for element count change: {e}")
+            return _error(str(e))
+
     def enable_network_interception(self) -> bool:
         """
         Enable network request/response interception using Performance API.

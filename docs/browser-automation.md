@@ -75,13 +75,18 @@ This means you write your agent once, and it works correctly in both environment
 
 Agents get these browser tools automatically:
 
-| Tool                                         | Description                                   |
-| -------------------------------------------- | --------------------------------------------- |
-| `navigate_to(url)`                           | Navigate to a URL                             |
-| `click_element(selector/ref)`                | Click element by CSS selector, XPath, or ref  |
-| `type_text(text, selector/ref, clear_first)` | Type text into an element                     |
-| `press_keys(keys, selector/ref)`             | Send keyboard input (Arrow keys, Enter, etc.) |
-| `scroll_to_element(selector/ref)`            | Scroll element into view                      |
+| Tool                                               | Description                                          |
+| -------------------------------------------------- | ---------------------------------------------------- |
+| `navigate_to(url)`                                 | Navigate to a URL                                    |
+| `click_element(selector/ref)`                      | Click element by CSS selector, XPath, or ref         |
+| `type_text(text, selector/ref, clear_first)`       | Type text into an element                            |
+| `press_keys(keys, selector/ref)`                   | Send keyboard input (Arrow keys, Enter, etc.)        |
+| `scroll_to_element(selector/ref)`                  | Scroll element into view                             |
+| `scroll_page(direction, amount?)`                  | Scroll page viewport (down/up/top/bottom)            |
+| `wait_for_element(selector/ref, timeout)`          | Wait for element to appear                           |
+| `check_element_exists(selector/ref)`               | Check if element exists (no wait)                    |
+| `wait_for_element_to_change(selector/ref)`         | Wait for element content to change                   |
+| `wait_for_element_count_change(selector, timeout)` | Wait for element count to increase (infinite scroll) |
 
 > [!TIP] > **Using Refs for Token Efficiency**
 >
@@ -125,15 +130,18 @@ if result['success']:
 
 ### Methods Using ToolResult
 
-| Method                 | `result` value on success   |
-| ---------------------- | --------------------------- |
-| `navigate_to`          | `True`                      |
-| `click_element`        | `True`                      |
-| `type_text`            | `True`                      |
-| `press_keys`           | `True`                      |
-| `scroll_to_element`    | `True`                      |
-| `wait_for_element`     | `True`                      |
-| `check_element_exists` | `True` or `False` (exists?) |
+| Method                          | `result` value on success                             |
+| ------------------------------- | ----------------------------------------------------- |
+| `navigate_to`                   | `True`                                                |
+| `click_element`                 | `True`                                                |
+| `type_text`                     | `True`                                                |
+| `press_keys`                    | `True`                                                |
+| `scroll_to_element`             | `True`                                                |
+| `scroll_page`                   | `{beforeY, afterY, pageHeight, scrolledBy, atBottom}` |
+| `wait_for_element`              | `True`                                                |
+| `check_element_exists`          | `True` or `False` (exists?)                           |
+| `wait_for_element_to_change`    | `{changed, elapsed_time, changes}`                    |
+| `wait_for_element_count_change` | `{initial_count, final_count, increased_by, changed}` |
 
 > [!TIP]
 > This consistent return structure makes it easy to handle errors and check results programmatically. Always check `result['success']` before assuming an action worked.
@@ -432,6 +440,23 @@ Agent:
 4. Page changes, fresh page map automatically available
 5. Calls click_element on first result → page map updated
 ```
+
+### Infinite Scroll
+
+```
+User: "Extract 30 quotes from quotes.toscrape.com/scroll"
+Agent:
+1. Calls navigate_to("http://quotes.toscrape.com/scroll") → page map shows initial quotes
+2. Calls scroll_page(direction="down") → scrolls viewport down
+3. Calls wait_for_element_count_change(selector=".quote") → waits for new quotes to load
+   Returns: {initial_count: 10, final_count: 20, increased_by: 10, changed: true}
+4. Repeats steps 2-3 until changed=false (no more content) or count >= 30
+5. Calls execute_js_script to extract all quote data
+```
+
+> [!TIP]
+> The `scroll_page` + `wait_for_element_count_change` pattern is more reliable than
+> arbitrary delays. The agent scrolls, then waits for actual content to appear.
 
 ## PageParser Intelligence
 

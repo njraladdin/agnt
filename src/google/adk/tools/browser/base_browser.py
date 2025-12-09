@@ -324,3 +324,61 @@ class BaseBrowser(abc.ABC):
         - result: Any - The return value from your JavaScript (if success)
         - error: str - Error message (if failed)
     """
+
+  @abc.abstractmethod
+  def scroll_page(
+      self,
+      direction: str = "down",
+      amount: Optional[int] = None,
+  ) -> ToolResult:
+    """Scroll the page in a direction or by a specific pixel amount.
+
+    Use this method for general page scrolling, such as:
+    - Scrolling down to load more content (infinite scroll)
+    - Scrolling to the bottom of a page
+    - Scrolling up to return to top
+
+    For scrolling TO a specific element, use scroll_to_element instead.
+
+    Args:
+      direction: Direction to scroll - "down", "up", "top", or "bottom".
+          - "down": Scroll down by viewport height (or by 'amount' if specified)
+          - "up": Scroll up by viewport height (or by 'amount' if specified)
+          - "top": Scroll to the very top of the page
+          - "bottom": Scroll to the very bottom of the page
+      amount: Optional pixel amount to scroll. Only used with "down" or "up".
+
+    Returns:
+      ToolResult with success=True. Result contains scroll position info.
+    """
+
+  @abc.abstractmethod
+  def wait_for_element_count_change(
+      self,
+      selector: str,
+      timeout: int = 10,
+      expected_increase: int = 1,
+  ) -> ToolResult:
+    """Wait until the count of elements matching a selector changes.
+
+    Use this method to detect when new content has loaded, such as:
+    - Infinite scroll loading more items
+    - Search results populating
+    - Dynamic content appearing after an action
+
+    The method captures the current count, then polls until the count
+    increases or the timeout is reached.
+
+    Args:
+      selector: CSS selector to count elements (e.g., '.quote', '.product-card')
+      timeout: Maximum seconds to wait for count to change (default: 10)
+      expected_increase: Minimum increase required to detect change (default: 1)
+
+    Returns:
+      ToolResult with success=True. Result contains:
+        - initial_count: Element count before waiting
+        - final_count: Element count after waiting
+        - increased_by: How many new elements appeared
+        - changed: Whether count increased by at least expected_increase
+    """
+

@@ -191,9 +191,11 @@ class BrowserToolset(BaseToolset):
         BrowserTool(browser.type_text),
         BrowserTool(browser.press_keys),
         BrowserTool(browser.scroll_to_element),
+        BrowserTool(browser.scroll_page),
         BrowserTool(browser.wait_for_element),
         BrowserTool(browser.check_element_exists),
         BrowserTool(browser.wait_for_element_to_change),
+        BrowserTool(browser.wait_for_element_count_change),
         BrowserTool(
             browser.execute_js_script,
             save_screenshot_as_artifact=False,
