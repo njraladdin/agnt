@@ -118,29 +118,79 @@ class BrowserTool(FunctionTool):
 
     return result
 
+  # Configuration for result preview (to save LLM context tokens)
+  _SAMPLE_ITEMS_COUNT = 5  # Number of sample items to show
+  _MAX_RESULT_CHARS = 1000  # Max chars for non-array results
+
+  def _create_result_preview(self, data: Any) -> Optional[dict[str, Any]]:
+    """Create a structured preview of large results for LLM context efficiency.
+
+    For large results, creates a preview that lets the LLM understand the
+    data structure without consuming excessive context tokens.
+
+    Args:
+      data: The data to potentially create a preview for.
+
+    Returns:
+      A preview dict if data is large, or None if data is small enough
+      to return as-is.
+    """
+    # Handle arrays with many items - show sample + metadata
+    if isinstance(data, list) and len(data) > self._SAMPLE_ITEMS_COUNT:
+      sample_items = data[:self._SAMPLE_ITEMS_COUNT]
+
+      # Detect fields from sample items (for objects)
+      detected_fields = set()
+      for item in sample_items:
+        if isinstance(item, dict):
+          detected_fields.update(item.keys())
+
+      return {
+          'item_count': len(data),
+          'sample': sample_items,
+          'fields_in_sample': sorted(detected_fields) if detected_fields else None,
+      }
+
+    # Handle large non-array results - character preview
+    json_str = json.dumps(data, indent=2, default=str)
+    if len(json_str) > self._MAX_RESULT_CHARS:
+      return {
+          'preview': json_str[:self._MAX_RESULT_CHARS] + '...',
+          'total_chars': len(json_str),
+      }
+
+    # Small result - no preview needed
+    return None
+
   async def _save_result_artifact(
       self, result: Any, tool_context: ToolContext
   ) -> Any:
-    """Save the result as a JSON artifact.
+    """Save the result as a JSON artifact and return response for LLM.
+
+    Full data is saved to the artifact. If the result is large, a structured
+    preview is returned instead of the full data to save context tokens.
 
     Args:
       result: The result from the browser function.
       tool_context: Context for the tool execution.
 
     Returns:
-      The result, potentially enhanced with artifact info.
+      A dict with artifact info and either the full result (if small) or
+      a structured preview (if large).
     """
     try:
       # Determine what to save - for dict results with 'result' key, save that
       if isinstance(result, dict) and 'result' in result:
         data_to_save = result['result']
+        success = result.get('success', True)
       else:
         data_to_save = result
+        success = True
 
-      # Serialize to JSON
+      # Serialize to JSON (full data for artifact)
       json_bytes = json.dumps(data_to_save, indent=2, default=str).encode('utf-8')
 
-      # Save as artifact
+      # Save full data as artifact
       version = await tool_context.save_artifact(
           self._result_artifact_name,
           types.Part(
@@ -158,22 +208,16 @@ class BrowserTool(FunctionTool):
           len(json_bytes),
       )
 
-      # Add artifact info to result
-      if isinstance(result, dict):
-        result['result_artifact'] = {
-            'name': self._result_artifact_name,
-            'version': version,
-            'size_bytes': len(json_bytes),
+      # Check if we need a preview (for large results)
+      preview = self._create_result_preview(data_to_save)
+      if preview:
+        return {
+            'success': success,
+            **preview,
         }
-      else:
-        result = {
-            'result': result,
-            'result_artifact': {
-                'name': self._result_artifact_name,
-                'version': version,
-                'size_bytes': len(json_bytes),
-            },
-        }
+
+      # Small result - return as-is
+      return result
 
     except Exception as e:
       logger.error('Failed to save result artifact: %s', e)
@@ -215,22 +259,7 @@ class BrowserTool(FunctionTool):
           len(script_bytes),
       )
 
-      # Add artifact info to result
-      if isinstance(result, dict):
-        result['script_artifact'] = {
-            'name': self._script_artifact_name,
-            'version': version,
-            'size_bytes': len(script_bytes),
-        }
-      else:
-        result = {
-            'result': result,
-            'script_artifact': {
-                'name': self._script_artifact_name,
-                'version': version,
-                'size_bytes': len(script_bytes),
-            },
-        }
+      # Artifact is tracked via artifact_delta, no need to include in LLM response
 
     except Exception as e:
       logger.error('Failed to save script artifact: %s', e)

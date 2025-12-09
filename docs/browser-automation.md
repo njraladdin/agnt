@@ -95,6 +95,49 @@ Agents get these browser tools automatically:
 > The agent receives the page structure in its system instructions before each LLM request.
 > This happens automatically without requiring any tool calls.
 
+## Tool Return Types
+
+All browser action methods return a consistent `ToolResult` dictionary structure:
+
+```python
+{
+    'success': bool,      # Whether the operation completed successfully
+    'result': Any,        # The result value (usually True for success)
+    'error': str | None   # Error message if success is False
+}
+```
+
+### Example Usage
+
+```python
+# Check if navigation succeeded
+result = navigate_to("https://example.com")
+if result['success']:
+    print("Navigation successful")
+else:
+    print(f"Error: {result['error']}")
+
+# Check element existence (result contains the boolean)
+result = check_element_exists(selector="#my-element")
+if result['success']:
+    exists = result['result']  # True or False
+```
+
+### Methods Using ToolResult
+
+| Method                 | `result` value on success   |
+| ---------------------- | --------------------------- |
+| `navigate_to`          | `True`                      |
+| `click_element`        | `True`                      |
+| `type_text`            | `True`                      |
+| `press_keys`           | `True`                      |
+| `scroll_to_element`    | `True`                      |
+| `wait_for_element`     | `True`                      |
+| `check_element_exists` | `True` or `False` (exists?) |
+
+> [!TIP]
+> This consistent return structure makes it easy to handle errors and check results programmatically. Always check `result['success']` before assuming an action worked.
+
 ## Automatic Page Map Generation
 
 The browser module automatically generates page maps before each LLM request if a browser is open, and injects them into the agent's system instructions.

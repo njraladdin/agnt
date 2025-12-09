@@ -37,6 +37,9 @@ if TYPE_CHECKING:
   from .long_running_tool import LongRunningFunctionTool
   from .preload_memory_tool import preload_memory_tool as preload_memory
   from .tool_context import ToolContext
+  from .tool_result import ToolResult
+  from .tool_result import success as tool_success
+  from .tool_result import error as tool_error
   from .transfer_to_agent_tool import transfer_to_agent
   from .transfer_to_agent_tool import TransferToAgentTool
   from .url_context_tool import url_context
@@ -76,6 +79,9 @@ _LAZY_MAPPING = {
     ),
     'preload_memory': ('.preload_memory_tool', 'preload_memory_tool'),
     'ToolContext': ('.tool_context', 'ToolContext'),
+    'ToolResult': ('.tool_result', 'ToolResult'),
+    'tool_success': ('.tool_result', 'success'),
+    'tool_error': ('.tool_result', 'error'),
     'transfer_to_agent': ('.transfer_to_agent_tool', 'transfer_to_agent'),
     'TransferToAgentTool': (
         '.transfer_to_agent_tool',

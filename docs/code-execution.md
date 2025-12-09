@@ -67,6 +67,80 @@ The library also supports cloud-based execution environments for production and 
 - **`GKECodeExecutor`**: Uses Google Kubernetes Engine.
 - **`AgentEngineSandboxCodeExecutor`**: Uses Vertex AI Agent Engine Sandboxes.
 
+### 4. Tool-Aware Execution
+
+- **Class**: `ToolAwareCodeExecutor`
+- **Description**: Executes code with access to injected callable tools. This enables complex workflows where code can loop, branch, and call agent tools (like browser methods) programmatically.
+- **Use Case**: Perfect for workflows that require iteration, like paginated data extraction, multi-step automation, or batch operations.
+
+**Usage Example:**
+
+````python
+from google.adk.code_executors import ToolAwareCodeExecutor
+from google.adk.agents.llm_agent import LlmAgent
+
+# Assume you have a browser instance
+from google.adk.tools.browser import SeleniumBaseBrowser
+
+browser = SeleniumBaseBrowser()
+browser.initialize()
+
+# Create executor with browser methods injected as tools
+executor = ToolAwareCodeExecutor(
+    injected_tools={
+        'navigate_to': browser.navigate_to,
+        'click_element': browser.click_element,
+        'execute_js_script': browser.execute_js_script,
+        'wait_for_element': browser.wait_for_element,
+    }
+)
+
+agent = LlmAgent(
+    name="automation_agent",
+    code_executor=executor,
+    instruction="""You are an automation assistant with browser capabilities.
+
+When you need to perform multi-step operations (like extracting data from
+multiple pages), write Python code that calls the available tools:
+- navigate_to(url): Go to a URL
+- click_element(selector): Click an element
+- execute_js_script(script): Run JavaScript and get results
+- wait_for_element(selector): Wait for an element to appear
+
+Use ```tool_code blocks for executable code. The `json` module is available.
+
+Example for paginated extraction:
+```tool_code
+all_data = []
+for page in range(5):
+    result = execute_js_script('''
+        return [...document.querySelectorAll('.item')].map(el => ({
+            title: el.querySelector('.title').textContent
+        }))
+    ''')
+    if result.get('success'):
+        all_data.extend(result.get('result', []))
+
+    # Try to go to next page
+    next_result = click_element('.next-page')
+    if not next_result:
+        break
+
+print(json.dumps(all_data, indent=2))
+````
+
+""",
+)
+
+````
+
+**Key Features:**
+
+- **Tool Injection**: Any callable can be injected and called from code
+- **Bounded Access**: Unlike `UnsafeLocalCodeExecutor`, code can only call explicitly injected functions
+- **Loop Support**: Enables iteration patterns impossible with single tool calls
+- **Common Imports**: `json` is pre-imported for convenience
+
 ## Configuring the Agent
 
 To enable code execution for an agent, simply instantiate the desired executor class and pass it to the `LlmAgent` constructor via the `code_executor` parameter.
@@ -77,7 +151,7 @@ agent = LlmAgent(
     code_executor=ContainerCodeExecutor(image='python:3.10'),
     # ...
 )
-```
+````
 
 ## Running Shell Commands
 

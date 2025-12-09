@@ -34,6 +34,9 @@ from typing_extensions import override
 
 from .base_browser import BaseBrowser
 from .base_browser import BrowserState
+from .base_browser import ToolResult
+from .base_browser import _success
+from .base_browser import _error
 from .page_parser import PageElement
 from .page_parser import PageParser
 
@@ -314,7 +317,7 @@ class SeleniumBaseBrowser(BaseBrowser):
             return None
         return self.driver.get_title()
 
-    def navigate_to(self, url: str) -> bool:
+    def navigate_to(self, url: str) -> ToolResult:
         """
         Navigate to a URL
         
@@ -322,11 +325,10 @@ class SeleniumBaseBrowser(BaseBrowser):
             url: URL to navigate to
             
         Returns:
-            True if successful, False otherwise
+            ToolResult with success=True if navigation succeeded.
         """
         if not self.driver:
-            logger.error("Browser not initialized")
-            return False
+            return _error("Browser not initialized")
         
         try:
             # Use SeleniumBase's uc_open_with_reconnect for better compatibility
@@ -335,10 +337,10 @@ class SeleniumBaseBrowser(BaseBrowser):
             # Wait for page to settle
             #time.sleep(2)
             
-            return True
+            return _success(True)
         except Exception as e:
             logger.error(f"Error navigating to {url}: {e}")
-            return False
+            return _error(str(e))
 
     def wait_for_element(
         self,
@@ -346,7 +348,7 @@ class SeleniumBaseBrowser(BaseBrowser):
         *,
         ref: Optional[str] = None,
         timeout: int = 10,
-    ) -> bool:
+    ) -> ToolResult:
         """
         Wait for an element to be present and visible
         
@@ -356,10 +358,10 @@ class SeleniumBaseBrowser(BaseBrowser):
             timeout: Maximum time to wait in seconds
             
         Returns:
-            True if element appeared within timeout, False otherwise
+            ToolResult with success=True if element appeared within timeout.
         """
         if not self.driver:
-            return False
+            return _error("Browser not initialized")
         
         try:
             # Resolve selector from either selector or ref
@@ -374,11 +376,11 @@ class SeleniumBaseBrowser(BaseBrowser):
             else:
                 # CSS selector
                 self.driver.wait_for_element(resolved_selector, timeout=timeout)
-            return True
+            return _success(True)
             
         except Exception as e:
             logger.warning(f"Element not found: {resolved_selector}, Error: {e}")
-            return False
+            return _error(f"Element not found: {e}")
 
     def find_element(self, selector: str) -> Optional[Any]:
         """
@@ -465,6 +467,11 @@ class SeleniumBaseBrowser(BaseBrowser):
         Your script should use `return` to send data back. The returned value
         can be any JSON-serializable type (string, number, array, object, etc.).
         
+        IMPORTANT: The result is automatically saved as an artifact that the user
+        can view directly. Do NOT repeat or restate the entire result in your
+        response - instead, provide a brief summary (e.g., "Extracted 25 products"
+        or "Found 3 matching items") and mention any notable observations.
+        
         Common data extraction patterns:
         
         1. Extract text from multiple elements:
@@ -489,16 +496,7 @@ class SeleniumBaseBrowser(BaseBrowser):
            );
            ```
         
-        4. Get page metadata:
-           ```javascript
-           return {
-               title: document.title,
-               description: document.querySelector('meta[name="description"]')?.content,
-               canonicalUrl: document.querySelector('link[rel="canonical"]')?.href
-           };
-           ```
-        
-        5. Extract links matching a pattern:
+        4. Extract links matching a pattern:
            ```javascript
            return Array.from(document.querySelectorAll('a[href]'))
                .filter(a => a.href.includes('/product/'))
@@ -573,7 +571,7 @@ class SeleniumBaseBrowser(BaseBrowser):
             return None
 
 
-    def click_element(self, selector: Optional[str] = None, *, ref: Optional[str] = None) -> bool:
+    def click_element(self, selector: Optional[str] = None, *, ref: Optional[str] = None) -> ToolResult:
         """
         Click an element using SeleniumBase's native click methods.
         Automatically scrolls the element into view before clicking.
@@ -583,11 +581,10 @@ class SeleniumBaseBrowser(BaseBrowser):
             ref: Short reference from page map (data-agent-ref attribute)
 
         Returns:
-            True if successful, False otherwise
+            ToolResult with success=True if click succeeded.
         """
         if not self.driver:
-            logger.error("Browser not initialized, cannot click element.")
-            return False
+            return _error("Browser not initialized, cannot click element.")
 
         try:
             # Resolve selector from either selector or ref
@@ -596,8 +593,8 @@ class SeleniumBaseBrowser(BaseBrowser):
                 logger.info(f"Resolved ref '{ref}' to selector: {resolved_selector}")
 
             # First, scroll the element into view to prevent click interception
-            scroll_success = self.scroll_to_element(selector=resolved_selector)
-            if not scroll_success:
+            scroll_result = self.scroll_to_element(selector=resolved_selector)
+            if not scroll_result.get('success'):
                 logger.warning(f"Could not scroll to element '{resolved_selector}', attempting click anyway")
 
             # Add a small delay after scrolling to ensure the page has settled
@@ -608,17 +605,17 @@ class SeleniumBaseBrowser(BaseBrowser):
                 self.driver.click(resolved_selector, by="xpath")
                 logger.info(f"Successfully clicked XPath element: {resolved_selector}")
                 self.last_clicked_selector = resolved_selector
-                return True
+                return _success(True)
             else:
                 # CSS selector - use SeleniumBase's click method
                 self.driver.click(resolved_selector)
                 logger.info(f"Successfully clicked CSS selector: {resolved_selector}")
                 self.last_clicked_selector = resolved_selector
-                return True
+                return _success(True)
 
         except Exception as e:
             logger.error(f"Failed to click element '{resolved_selector}': {e}")
-            return False
+            return _error(f"Failed to click element: {e}")
 
     def press_keys(
         self,
@@ -626,7 +623,7 @@ class SeleniumBaseBrowser(BaseBrowser):
         selector: Optional[str] = None,
         *,
         ref: Optional[str] = None,
-    ) -> bool:
+    ) -> ToolResult:
         """
         Send keyboard input to an element or the active element/body.
 
@@ -636,10 +633,10 @@ class SeleniumBaseBrowser(BaseBrowser):
             ref: Short reference from page map (data-agent-ref attribute).
 
         Returns:
-            True if successful, False otherwise
+            ToolResult with success=True if key press succeeded.
         """
         if not self.driver:
-            return False
+            return _error("Browser not initialized")
 
         try:
             # Resolve selector from either selector or ref (if provided)
@@ -684,7 +681,7 @@ class SeleniumBaseBrowser(BaseBrowser):
                                 except Exception:
                                     pass
                                 element.send_keys(*seq)
-                                return True
+                                return _success(True)
                             except Exception:
                                 pass
                     else:
@@ -710,14 +707,14 @@ class SeleniumBaseBrowser(BaseBrowser):
                                     active = self.driver.switch_to.active_element
                                     if hasattr(active, 'tag_name') and (active.tag_name or '').lower() != 'body':
                                         active.send_keys(*seq)
-                                        return True
+                                        return _success(True)
                                 except Exception:
                                     pass
                         except Exception:
                             pass
                         # Fallback: direct press_keys on provided selector
                         self.driver.press_keys(resolved_selector, *seq)
-                        return True
+                        return _success(True)
                 else:
                     # No selector: prefer last clicked selector if available; otherwise focus generic ARIA/native components
                     if self.last_clicked_selector:
@@ -833,7 +830,7 @@ class SeleniumBaseBrowser(BaseBrowser):
                         active = self.driver.switch_to.active_element
                         if hasattr(active, 'tag_name') and (active.tag_name or '').lower() != 'body':
                             active.send_keys(*seq)
-                            return True
+                            return _success(True)
                     except Exception:
                         pass
 
@@ -846,7 +843,7 @@ class SeleniumBaseBrowser(BaseBrowser):
                             except Exception:
                                 pass
                             target.send_keys(*seq)
-                            return True
+                            return _success(True)
                     except Exception:
                         pass
 
@@ -872,7 +869,7 @@ class SeleniumBaseBrowser(BaseBrowser):
                             except Exception:
                                 pass
                             element.send_keys(*seq)
-                            return True
+                            return _success(True)
                         except Exception:
                             pass
 
@@ -880,21 +877,21 @@ class SeleniumBaseBrowser(BaseBrowser):
                 try:
                     active = self.driver.switch_to.active_element
                     active.send_keys(*seq)
-                    return True
+                    return _success(True)
                 except Exception:
                     pass
                 try:
                     body = self.driver.find_element("css selector", "body")
                     body.send_keys(*seq)
-                    return True
+                    return _success(True)
                 except Exception:
                     pass
                 logger.error(f"Failed to press keys {key_list} on selector {selector}: {e}")
-                return False
+                return _error(f"Failed to press keys: {e}")
 
         except Exception as e:
             logger.error(f"Error pressing keys {keys} on {selector}: {e}")
-            return False
+            return _error(str(e))
     def type_text(
         self,
         text: str,
@@ -902,7 +899,7 @@ class SeleniumBaseBrowser(BaseBrowser):
         *,
         ref: Optional[str] = None,
         clear_first: bool = True,
-    ) -> bool:
+    ) -> ToolResult:
         """
         Type text into an element using JavaScript for direct control
         
@@ -913,10 +910,10 @@ class SeleniumBaseBrowser(BaseBrowser):
             clear_first: Whether to clear existing text first
             
         Returns:
-            True if successful, False otherwise
+            ToolResult with success=True if typing succeeded.
         """
         if not self.driver:
-            return False
+            return _error("Browser not initialized")
         
         try:
             # Resolve selector from either selector or ref
@@ -927,7 +924,7 @@ class SeleniumBaseBrowser(BaseBrowser):
             element = self.find_element(resolved_selector)
             if not element:
                 logger.error(f"Element not found for selector '{resolved_selector}'")
-                return False
+                return _error(f"Element not found for selector '{resolved_selector}'")
             
             # Use JavaScript to set the value directly
             escaped_text = text.replace("'", "\\'")
@@ -937,11 +934,11 @@ class SeleniumBaseBrowser(BaseBrowser):
                 script = f"arguments[0].value += '{escaped_text}'; arguments[0].dispatchEvent(new Event('input', {{bubbles: true}}));"
             
             self.driver.execute_script(script, element)
-            return True
+            return _success(True)
             
         except Exception as e:
             logger.error(f"Error typing text into element {resolved_selector}: {e}")
-            return False
+            return _error(str(e))
     def get_text(self, selector: str) -> Optional[str]:
         """
         Get text content from an element
@@ -996,7 +993,7 @@ class SeleniumBaseBrowser(BaseBrowser):
 
     def check_element_exists(
         self, selector: Optional[str] = None, *, ref: Optional[str] = None
-    ) -> bool:
+    ) -> ToolResult:
         """
         Check if an element exists on the page (regardless of visibility)
         
@@ -1005,10 +1002,10 @@ class SeleniumBaseBrowser(BaseBrowser):
             ref: Short reference from page map (data-agent-ref attribute)
             
         Returns:
-            True if element exists, False otherwise
+            ToolResult with success=True. Result is boolean existence.
         """
         if not self.driver:
-            return False
+            return _error("Browser not initialized")
         
         try:
             # Resolve selector from either selector or ref
@@ -1017,16 +1014,19 @@ class SeleniumBaseBrowser(BaseBrowser):
                 logger.info(f"Resolved ref '{ref}' to selector: {resolved_selector}")
 
             # Use SeleniumBase's is_element_present method
+            exists = False
             if resolved_selector.startswith('/') or resolved_selector.startswith('('):
                 # XPath
-                return self.driver.is_element_present(resolved_selector, by="xpath")
+                exists = self.driver.is_element_present(resolved_selector, by="xpath")
             else:
                 # CSS selector
-                return self.driver.is_element_present(resolved_selector)
+                exists = self.driver.is_element_present(resolved_selector)
+            
+            return _success(exists)
             
         except Exception as e:
             logger.warning(f"Error checking existence of element {resolved_selector}: {e}")
-            return False
+            return _error(str(e))
 
     def wait_for_element_to_change(
         self,
@@ -1215,7 +1215,7 @@ class SeleniumBaseBrowser(BaseBrowser):
 
     def scroll_to_element(
         self, selector: Optional[str] = None, *, ref: Optional[str] = None
-    ) -> bool:
+    ) -> ToolResult:
         """
         Scroll to an element using JavaScript scrollIntoView with instant behavior
         
@@ -1224,10 +1224,10 @@ class SeleniumBaseBrowser(BaseBrowser):
             ref: Short reference from page map (data-agent-ref attribute)
             
         Returns:
-            True if successful, False otherwise
+            ToolResult with success=True if scroll succeeded.
         """
         if not self.driver:
-            return False
+            return _error("Browser not initialized")
         
         try:
             # Resolve selector from either selector or ref
@@ -1248,7 +1248,7 @@ class SeleniumBaseBrowser(BaseBrowser):
                 return false;
                 """
                 result = self.driver.execute_script(script)
-                return bool(result)
+                return _success(True) if result else _error("Element not found")
             else:
                 # CSS selector - properly escape the selector to prevent JavaScript syntax errors
                 escaped_selector = resolved_selector.replace("'", "\\'")
@@ -1261,11 +1261,11 @@ class SeleniumBaseBrowser(BaseBrowser):
                 return false;
                 """
                 result = self.driver.execute_script(script)
-                return bool(result)
+                return _success(True) if result else _error("Element not found")
             
         except Exception as e:
             logger.error(f"Error scrolling to element {resolved_selector}: {e}")
-            return False
+            return _error(str(e))
 
     def enable_network_interception(self) -> bool:
         """

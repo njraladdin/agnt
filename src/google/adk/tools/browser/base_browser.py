@@ -25,6 +25,9 @@ from typing import Union
 import pydantic
 
 from ...utils.feature_decorator import experimental
+from ..tool_result import ToolResult
+from ..tool_result import success as _success
+from ..tool_result import error as _error
 
 
 @experimental
@@ -46,7 +49,6 @@ class BrowserState(pydantic.BaseModel):
   screenshot_bytes: Optional[bytes] = pydantic.Field(
       default=None, description="PNG screenshot as bytes"
   )
-
 
 
 @experimental
@@ -104,20 +106,20 @@ class BaseBrowser(abc.ABC):
     pass
 
   @abc.abstractmethod
-  def navigate_to(self, url: str) -> bool:
+  def navigate_to(self, url: str) -> ToolResult:
     """Navigate to a URL.
 
     Args:
       url: The URL to navigate to.
 
     Returns:
-      True if navigation was successful, False otherwise.
+      ToolResult with success=True and result=True if navigation succeeded.
     """
 
   @abc.abstractmethod
   def click_element(
       self, selector: Optional[str] = None, *, ref: Optional[str] = None
-  ) -> bool:
+  ) -> ToolResult:
     """Click an element by CSS selector, XPath, or ref.
 
     The element is automatically scrolled into view before clicking.
@@ -127,7 +129,7 @@ class BaseBrowser(abc.ABC):
       ref: Short reference from page map (data-agent-ref attribute).
 
     Returns:
-      True if click was successful, False otherwise.
+      ToolResult with success=True and result=True if click succeeded.
     """
 
   @abc.abstractmethod
@@ -138,7 +140,7 @@ class BaseBrowser(abc.ABC):
       *,
       ref: Optional[str] = None,
       clear_first: bool = True,
-  ) -> bool:
+  ) -> ToolResult:
     """Type text into an element.
 
     Args:
@@ -148,7 +150,7 @@ class BaseBrowser(abc.ABC):
       clear_first: Whether to clear existing text before typing.
 
     Returns:
-      True if typing was successful, False otherwise.
+      ToolResult with success=True and result=True if typing succeeded.
     """
 
   @abc.abstractmethod
@@ -158,7 +160,7 @@ class BaseBrowser(abc.ABC):
       selector: Optional[str] = None,
       *,
       ref: Optional[str] = None,
-  ) -> bool:
+  ) -> ToolResult:
     """Send keyboard input to an element or the active element.
 
     Args:
@@ -167,13 +169,13 @@ class BaseBrowser(abc.ABC):
       ref: Short reference from page map (data-agent-ref attribute).
 
     Returns:
-      True if key press was successful, False otherwise.
+      ToolResult with success=True and result=True if key press succeeded.
     """
 
   @abc.abstractmethod
   def scroll_to_element(
       self, selector: Optional[str] = None, *, ref: Optional[str] = None
-  ) -> bool:
+  ) -> ToolResult:
     """Scroll to an element to bring it into view.
 
     Args:
@@ -181,7 +183,7 @@ class BaseBrowser(abc.ABC):
       ref: Short reference from page map (data-agent-ref attribute).
 
     Returns:
-      True if scroll was successful, False otherwise.
+      ToolResult with success=True and result=True if scroll succeeded.
     """
 
   @abc.abstractmethod
@@ -240,7 +242,7 @@ class BaseBrowser(abc.ABC):
       *,
       ref: Optional[str] = None,
       timeout: int = 10,
-  ) -> bool:
+  ) -> ToolResult:
     """Wait for an element to appear on the page.
 
     This method waits until an element matching the selector or ref becomes
@@ -252,13 +254,13 @@ class BaseBrowser(abc.ABC):
       timeout: Maximum time to wait in seconds (default: 10).
 
     Returns:
-      True if element appeared within timeout, False otherwise.
+      ToolResult with success=True and result=True if element appeared.
     """
 
   @abc.abstractmethod
   def check_element_exists(
       self, selector: Optional[str] = None, *, ref: Optional[str] = None
-  ) -> bool:
+  ) -> ToolResult:
     """Check if an element exists on the page.
 
     This method checks for element existence without waiting or throwing
@@ -269,7 +271,8 @@ class BaseBrowser(abc.ABC):
       ref: Short reference from page map (data-agent-ref attribute).
 
     Returns:
-      True if element exists, False otherwise.
+      ToolResult with success=True and result=True if element exists,
+      or result=False if element does not exist.
     """
 
   @abc.abstractmethod
@@ -306,6 +309,11 @@ class BaseBrowser(abc.ABC):
 
     Use this method when you need to extract structured data from the page
     that isn't available in the page map, or to perform custom DOM operations.
+
+    IMPORTANT: The result is automatically saved as an artifact that the user
+    can view directly. Do NOT repeat or restate the entire result in your
+    response - instead, provide a brief summary and mention any notable
+    observations.
 
     Args:
       script: JavaScript code to execute. Must use `return` to get values back.
